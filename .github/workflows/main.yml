@@ -11,6 +11,9 @@ on:
       - "v*"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 # a workflow is built up as jobs, and within these jobs are steps
 jobs:
 
@@ -90,6 +93,9 @@ jobs:
           tag_name: ${{ steps.read_release.outputs.version }}
           name: ${{ steps.read_release.outputs.version }}
           files: ${{ steps.read_release.outputs.filename }}
+          fail_on_unmatched_files: false
+          generate_release_notes: true
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
