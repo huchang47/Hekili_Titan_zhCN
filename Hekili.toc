@@ -1,5 +1,5 @@
 ## Interface: 38000
-## Version: v3.80.0-1.0.0-泰坦特别版
+## Version: v3.80.0-1.0.2-泰坦特别版
 ## Title: Hekili
 ## Title-zhCN: Hekili 泰坦
 ## Author: Hekili,Hutu,风雪
