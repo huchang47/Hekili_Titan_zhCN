@@ -1,4 +1,3 @@
-# hekili
-This priority helper supports all DPS and Tank specializations in World of Warcraft **Retail**.
+# Hekili 泰坦时光服特殊版
 
-[Latest Release](https://github.com/Hekili/hekili/releases/latest)
+仅支持中国大陆服特有的泰坦时光服的特殊版Hekili，且仅支持简体中文。
