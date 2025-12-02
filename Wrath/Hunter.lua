@@ -96,6 +96,8 @@ spec:RegisterTalents( {
     wyvern_sting                  = {  1325, 1, 19386 },
 } )
 
+-- 泰坦时光服套装by风雪20251201
+spec:RegisterGear( "tier1", 255059, 255060, 255061, 255062, 255063, 255064, 255065, 255066 )
 
 -- Auras
 spec:RegisterAuras( {
@@ -1621,10 +1623,14 @@ spec:RegisterAbilities( {
 
 
     -- Give the command to kill, increasing your pet's damage done from special attacks by 60% for 30 sec.  Each special attack done by the pet reduces the damage bonus by 20%.
-    kill_command = {
+    kill_command = { --杀戮命令 修改by风雪 20251201
         id = 34026,
         cast = 0,
-        cooldown = function() return 60 - ( 10 * talent.catlike_reflexes.rank ) end,
+        cooldown = function()
+            local base = 60 - ( 10 * talent.catlike_reflexes.rank )
+            if set_bonus.tier1_2pc == 1 then base = base - 15 end --T1 2件套减少15s
+            return base
+        end,
         gcd = "off",
 
         spend = function() return mod_beast_within( 0.03 ) end,

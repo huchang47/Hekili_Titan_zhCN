@@ -15,6 +15,10 @@ spec:RegisterGear( "libram_of_fortitude", 42611, 42851, 42852, 42853, 42854 )
 spec:RegisterGear( "libram_of_valiance", 47661 )
 spec:RegisterGear( "libram_of_three_truths", 50455 )
 
+-- 泰坦时光服套装by风雪20251201
+-- 惩戒
+spec:RegisterGear( "tier1ret", 257635, 257636, 257637, 257638, 257639, 257640, 257641, 257642) --T1惩戒
+
 -- Sets
 spec:RegisterGear( "tier7ret", 43794, 43796, 43801, 43803, 43805, 40574, 40575, 40576, 40577, 40578 ) --T7惩戒
 spec:RegisterGear( "tier10ret", 50324, 50325, 50326, 50327, 50328, 51160, 51161, 51162, 51163, 51164, 51275, 51276, 51277, 51278, 51279 ) -- t10惩戒
@@ -1091,10 +1095,10 @@ spec:RegisterAbilities( {
 
 
     -- An instant weapon attack that causes 110% of weapon damage to up to 4 enemies within 8 yards.  The Divine Storm heals up to 3 party or raid members totaling 25% of the damage caused.
-    divine_storm = {
+    divine_storm = { --神圣风暴 修改by风雪 20251201
         id = 53385,
         cast = 0,
-        cooldown = 10,
+        cooldown = function() return 10 - (set_bonus.tier1ret_4pc == 1 and 1 or 0) end, --T1惩戒4件套减少1s
         gcd = "spell",
 
         spend = function() return mod_benediction( mod_divine_illumination( 0.12 ) ) end,

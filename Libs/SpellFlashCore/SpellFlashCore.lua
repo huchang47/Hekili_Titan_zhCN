@@ -1,7 +1,6 @@
-local MinBuild, OverBuild = 100000, 0
+local MinBuild, OverBuild = 0, 0
 local BuildStr, _, _, Build = GetBuildInfo()
-if BuildStr:match("^3.4.") then MinBuild = 30400 end
-if Build < (MinBuild or 0) or ( (OverBuild or 0) > 0 and Build >= OverBuild ) then return end
+if (OverBuild or 0) > 0 and Build >= OverBuild then return end
 local AddonName, a = ...
 a.AddonName = AddonName
 local AddonTitle = select(2, GetAddOnInfo(AddonName))
