@@ -4052,6 +4052,16 @@ do
 
             local aura = class.auras[ k ]
 
+            -- 支持通过数字ID查询buff
+            if not aura and type( k ) == "number" then
+                for key, a in pairs( class.auras ) do
+                    if type( a ) == "table" and a.id == k then
+                        aura = a
+                        break
+                    end
+                end
+            end
+
             if not aura then
                 if Hekili.PLAYER_ENTERING_WORLD and not buffs_warned[ k ] then
                     Hekili:Error( "Unknown buff: " .. k .. " [" .. state.scriptID .. "]\n\n" .. debugstack() )
@@ -5007,6 +5017,16 @@ do
 
         __index = function( t, k )
             local aura = class.auras[ k ]
+
+            -- 支持通过数字ID查询debuff
+            if not aura and type( k ) == "number" then
+                for key, a in pairs( class.auras ) do
+                    if type( a ) == "table" and a.id == k then
+                        aura = a
+                        break
+                    end
+                end
+            end
 
             if aura then
                 if k ~= aura.key then

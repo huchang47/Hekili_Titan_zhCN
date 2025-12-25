@@ -568,6 +568,13 @@ spec:RegisterAuras( {
         duration = 20,
         max_stack = 1,
     },
+    -- 泰坦服啜血buff - 下一次枯萎凋零不消耗鲜血和冰霜符文
+    chuoxue = {
+        id = 1282343,
+        name = "啜血",
+        duration = 10,
+        max_stack = 1,
+    },
     -- Spell damage reduced by $s1%.  Immune to magic debuffs.
     antimagic_shell = {
         id = 48707,

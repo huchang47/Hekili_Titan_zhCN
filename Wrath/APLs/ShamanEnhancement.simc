@@ -1,14 +1,36 @@
+## Shaman: Enhancement - 增强萨满优化版
+## 泰坦时空特别版 - 优化手法
+## ========================================
+## 双火/风火 单体: 漩涡武器 > 闪电箭 > 风暴打击 > 烈焰震击(DOT保持) > 大地震击 > 闪电之盾 > 火焰新星 > 熔岩猛击
+## 双火/风火 2-3目标: 漩涡武器 > 闪电链 > 火焰新星 > 漩涡武器 > 闪电箭 > 风暴打击 > 烈焰震击(DOT保持) > 大地震击 > 闪电之盾 > 熔岩猛击
+## 双火/风火 3目标以上: 火焰新星 > 漩涡武器 > 闪电链 > 漩涡武器 > 闪电箭 > 风暴打击 > 烈焰震击(DOT保持) > 大地震击 > 闪电之盾 > 熔岩猛击
+## ========================================
+## 双手武器附魔切换:
+## - 单体(<3目标): 风怒武器
+## - 群体(>=3目标): 火舌武器
+## ========================================
+
 actions.precombat+=/windfury_weapon,if=!mainhand_imbued&!mainhand_has_spellpower
 actions.precombat+=/flametongue_weapon,rank=action.flametongue_weapon.max_rank-1,if=!mainhand_imbued&mainhand_has_spellpower
 actions.precombat+=/flametongue_weapon,if=!offhand_imbued
 actions.precombat+=/lightning_shield,if=buff.shield.down
 actions.precombat+=/call_of_the_elements,if=buff.earth_totem.down|buff.fire_totem.down|buff.water_totem.down|buff.air_totem.down
 actions.precombat+=/potion
+
 actions+=/wind_shear
 actions+=/best_healing_potion,if=health.pct<35
-actions+=/windfury_weapon,if=!mainhand_imbued&!mainhand_has_spellpower
-actions+=/flametongue_weapon,rank=action.flametongue_weapon.max_rank-1,if=!mainhand_imbued&mainhand_has_spellpower
-actions+=/flametongue_weapon,if=!offhand_imbued
+
+## ========================================
+## 双手武器附魔切换 (自动根据单体/群体切换)
+## ========================================
+## 单体(<3目标): 推荐风怒武器 (当前不是风怒时)
+actions+=/windfury_weapon,if=!windfury_mainhand&active_enemies<3
+## 群体(>=3目标): 推荐火舌武器 (当前不是火舌时)
+actions+=/flametongue_weapon,if=!flametongue_mainhand&active_enemies>=3
+
+## ========================================
+## 核心输出循环
+## ========================================
 actions+=/shamanistic_rage,if=set_bonus.tier10enhancement_2pc=1
 actions+=/use_items
 actions+=/potion
@@ -30,3 +52,8 @@ actions+=/magma_totem,if=buff.fire_totem.remains<=latency&buff.fire_elemental_to
 actions+=/magma_totem,if=buff.magma_totem.up&buff.magma_totem.remains<3
 actions+=/lightning_shield,if=talent.static_shock.enabled&buff.shield.stack<buff.shield.max_stack*0.33
 actions+=/shamanistic_rage,if=target.within10&mana.pct<settings.shaman_rage_threshold
+
+## 后备技能 - 低等级时使用
+actions+=/earth_shock
+actions+=/lightning_bolt
+actions+=/auto_attack

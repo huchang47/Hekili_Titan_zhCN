@@ -3462,26 +3462,26 @@ all:RegisterAbilities( {
     },
 
     healthstone = {
-        name = "|cff00ccff[治疗石]|r",
+        name = "|cff00ccff[邪能治疗石]|r",
         cast = 0,
         cooldown = function () return time > 0 and 3600 or 60 end,
         gcd = "off",
 
-        item = 5512,
+        item = 36892,
         bagItem = true,
 
         startsCombat = false,
-        texture = 538745,
+        texture = 135230,
 
         usable = function ()
-            if GetItemCount( 5512 ) == 0 then return false, "需要背包中有治疗石"
-            elseif not IsUsableItem( 5512 ) then return false, "治疗石CD中"
+            if GetItemCount( 36892 ) == 0 then return false, "需要背包中有治疗石"
+            elseif not IsUsableItem( 36892 ) then return false, "治疗石CD中"
             elseif health.current >= health.max then return false, "必须已受到伤害" end
             return true
         end,
 
         readyTime = function ()
-            local start, duration = GetItemCooldown( 5512 )
+            local start, duration = GetItemCooldown( 36892 )
             return max( 0, start + duration - query_time )
         end,
 

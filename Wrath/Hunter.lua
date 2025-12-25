@@ -558,7 +558,7 @@ spec:RegisterAuras( {
         duration = function() return glyph.serpent_sting.enabled and 21 or 15 end,
         tick_time = 3,
         max_stack = 1,
-        copy = { 1978, 13549, 13550, 13551, 13552, 13553, 13554, 13555, 25295, 27016, 49000, 49001, "serpent_stin" },
+        copy = { 1978, 13549, 13550, 13551, 13552, 13553, 13554, 13555, 25295, 27016, 49000, 49001, "serpent_sting" },
     },
     -- Silenced.
     silencing_shot = {
@@ -853,7 +853,8 @@ end )
 spec:RegisterHook( "reset_precast", function()
     if repeating > 0 then applyBuff( "auto_shot" ) end
 
-    if IsUsableSpell( class.abilities.mongoose_bite.id ) and last_dodge > 0 and now - last_dodge < 5 then applyBuff( "mongoose_bite_usable", last_dodge + 5 - now ) end
+    -- 移除猫鼬撕咬的 buff 触发逻辑 【已删除】
+    --if IsUsableSpell( class.abilities.mongoose_bite.id ) and last_dodge > 0 and now - last_dodge < 5 then applyBuff( "mongoose_bite_usable", last_dodge + 5 - now ) end
     if IsUsableSpell( class.abilities.counterattack.id ) and last_parry > 0 and now - last_parry < 5 then applyBuff( "counterattack_usable", last_parry + 5 - now ) end
 
     if IsCurrentSpell( class.abilities.raptor_strike.id ) then
@@ -1759,12 +1760,12 @@ spec:RegisterAbilities( {
         startsCombat = true,
         texture = 132215,
 
-        buff = "mongoose_bite_usable",
+        --buff = "mongoose_bite_usable",--移除 buff 关联（错误的依赖）
 
         usable = function() return target.distance < 10, "requires melee range" end,
 
         handler = function ()
-            removeBuff( "mongoose_bite_usable" )
+            --removeBuff( "mongoose_bite_usable" )--移除 buff 关联（错误的依赖）
         end,
 
         copy = { 14269, 14270, 14271, 36916, 53339 },
@@ -2287,7 +2288,8 @@ spec:RegisterAbilities( {
     wing_clip = {
         id = 2974,
         cast = 0,
-        cooldown = 1.5,
+        --cooldown = 1.5,    --泰坦时光版本，摔绊CD=0
+		cooldown = 0,
         gcd = "spell",
 
         spend = function() return mod_beast_within( mod_resourcefulness_cost( 0.06 ) ) * ( 1 - 0.02 * talent.efficiency.rank ) end,
@@ -2530,3 +2532,47 @@ spec:RegisterSetting( "ICC", nil, {
     type = "header",
     name = "冰冠堡垒"
 } )
+
+spec:RegisterSetting( "PET", nil, {
+    type = "header",
+    name = "宠物相关"
+} )
+
+-- 【1/3】注册宠物低血量阈值配置项
+-- 作用：在插件设置界面生成一个可调节的滑块，允许用户自定义宠物低血量的判定阈值
+spec:RegisterSetting( "hunter_pet_low_health", 50, {
+    type = "range",                   -- 配置类型为范围滑块（可拖动选择数值）
+    name = "|T132179:0|t宠物低血量阈值",  -- 配置项显示名称（带宠物图标）
+    desc = "|T132179:0|t宠物血量低于/等于该值判定为低血量（单位：%），默认50%。",  -- 配置项描述
+    width = "full",                   -- 在设置界面中占满一行宽度
+    min = 20,                         -- 最小值：20%（宠物血量不低于20%不会判定为低血量）
+    softMax = 90,                     -- 建议最大值：90%（滑块拖动上限）
+    step = 5,                         -- 步长：5%（每次拖动增加/减少5%）
+} )
+
+-- 【2/3】注册宠物当前血量百分比的状态表达式
+-- 作用：计算并返回宠物当前血量占最大血量的百分比，供后续判定使用
+spec:RegisterStateExpr( "pet_health_pct", function()
+    -- 边缘情况处理：如果宠物不存在或已死亡，返回0%
+    if not UnitExists("pet") or UnitIsDead("pet") then
+        return 0
+    end
+    -- 计算血量百分比：(当前血量 / 最大血量) * 100
+    return (UnitHealth("pet")/UnitHealthMax("pet"))*100
+end )
+
+-- 【3/3】注册宠物低血量判定的状态表达式
+-- 作用：根据用户配置的阈值和宠物当前血量，返回是否为低血量状态（布尔值）
+spec:RegisterStateExpr( "hunter_pet_low_health", function()
+    -- 边缘情况处理：宠物不存在或死亡时，不判定为低血量
+    if not UnitExists("pet") or UnitIsDead("pet") then
+        return false
+    end
+    -- 获取用户在设置中配置的低血量阈值（默认50%）
+	local petHPset = spec:GetSetting("hunter_pet_low_health")
+    -- 获取通过【2/3】计算的宠物当前血量百分比
+    local petHP = state.pet_health_pct
+    
+    -- 防错处理：确保阈值和当前血量都是有效数字，且当前血量≤阈值时返回true（低血量）
+    return type(petHPset) == "number" and type(petHP) == "number" and petHP <= petHPset
+end )

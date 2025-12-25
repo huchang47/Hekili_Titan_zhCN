@@ -854,46 +854,73 @@ spec:RegisterGlyphs( {
 } )
 
 
-spec:RegisterStateExpr( "windfury_mainhand", function () return false end )
-spec:RegisterStateExpr( "windfury_offhand", function () return false end )
-spec:RegisterStateExpr( "flametongue_mainhand", function () return false end )
-spec:RegisterStateExpr( "flametongue_offhand", function () return false end )
-spec:RegisterStateExpr( "frostbrand_mainhand", function () return false end )
-spec:RegisterStateExpr( "frostbrand_offhand", function () return false end )
-spec:RegisterStateExpr( "rockbiter_mainhand", function () return false end )
-spec:RegisterStateExpr( "rockbiter_offhand", function () return false end )
-spec:RegisterStateExpr( "mainhand_imbued", function () return false end )
-spec:RegisterStateExpr( "offhand_imbued", function () return false end )
+-- 武器附魔状态变量 - 这些值在 reset_precast 钩子中设置
+local _windfury_mainhand, _windfury_offhand = false, false
+local _flametongue_mainhand, _flametongue_offhand = false, false
+local _frostbrand_mainhand, _frostbrand_offhand = false, false
+local _rockbiter_mainhand, _rockbiter_offhand = false, false
+local _mainhand_imbued, _offhand_imbued = false, false
+
+spec:RegisterStateExpr( "windfury_mainhand", function () return _windfury_mainhand end )
+spec:RegisterStateExpr( "windfury_offhand", function () return _windfury_offhand end )
+spec:RegisterStateExpr( "flametongue_mainhand", function () return _flametongue_mainhand end )
+spec:RegisterStateExpr( "flametongue_offhand", function () return _flametongue_offhand end )
+spec:RegisterStateExpr( "frostbrand_mainhand", function () return _frostbrand_mainhand end )
+spec:RegisterStateExpr( "frostbrand_offhand", function () return _frostbrand_offhand end )
+spec:RegisterStateExpr( "rockbiter_mainhand", function () return _rockbiter_mainhand end )
+spec:RegisterStateExpr( "rockbiter_offhand", function () return _rockbiter_offhand end )
+spec:RegisterStateExpr( "mainhand_imbued", function () return _mainhand_imbued end )
+spec:RegisterStateExpr( "offhand_imbued", function () return _offhand_imbued end )
 
 local GetWeaponEnchantInfo = _G.GetWeaponEnchantInfo
 
 local enchant_ids = {
-    [283]  = "windfury",
-    [284]  = "windfury",
-    [525]  = "windfury",
-    [1669] = "windfury",
-    [2636] = "windfury",
-    [5]    = "flametongue",
-    [4]    = "flametongue",
-    [3]    = "flametongue",
-    [523]  = "flametongue",
-    [1665] = "flametongue",
-    [1666] = "flametongue",
-    [2634] = "flametongue",
+    -- Windfury (所有等级)
+    [283]  = "windfury",  -- Rank 1
+    [284]  = "windfury",  -- Rank 2
+    [525]  = "windfury",  -- Rank 3
+    [1669] = "windfury",  -- Rank 4
+    [2636] = "windfury",  -- Rank 5
+    [3785] = "windfury",  -- Rank 6
+    [3786] = "windfury",  -- Rank 7
+    [3787] = "windfury",  -- Rank 8
+    -- Flametongue (所有等级)
+    [5]    = "flametongue",  -- Rank 1
+    [4]    = "flametongue",  -- Rank 2
+    [3]    = "flametongue",  -- Rank 3
+    [523]  = "flametongue",  -- Rank 4
+    [1665] = "flametongue",  -- Rank 5
+    [1666] = "flametongue",  -- Rank 6
+    [2634] = "flametongue",  -- Rank 7
+    [3779] = "flametongue",  -- Rank 8
+    [3780] = "flametongue",  -- Rank 9
+    [3781] = "flametongue",  -- Rank 10
+    -- Frostbrand (所有等级)
     [2]    = "frostbrand",
     [12]   = "frostbrand",
     [524]  = "frostbrand",
     [1667] = "frostbrand",
     [1668] = "frostbrand",
     [2635] = "frostbrand",
+    [3782] = "frostbrand",  -- Rank 7
+    [3783] = "frostbrand",  -- Rank 8
+    [3784] = "frostbrand",  -- Rank 9
+    -- Rockbiter (所有等级)
     [3023] = "rockbiter",
     [3026] = "rockbiter",
     [3028] = "rockbiter",
     [3031] = "rockbiter",
     [3034] = "rockbiter",
     [3037] = "rockbiter",
-    [3040] = "rockbiter", -- ???
-    [3043] = "rockbiter"  -- ???
+    [3040] = "rockbiter",
+    [3043] = "rockbiter",
+    -- Earthliving (所有等级)
+    [3345] = "earthliving",
+    [3346] = "earthliving",
+    [3347] = "earthliving",
+    [3348] = "earthliving",
+    [3349] = "earthliving",
+    [3350] = "earthliving",
 }
 
 local MainhandHasSpellpower = false
@@ -949,39 +976,47 @@ local update_gear = function(slotId, itemId)
 end
 
 spec:RegisterHook( "reset_precast", function()
-    windfury_mainhand = nil
-    windfury_offhand = nil
-    flametongue_mainhand = nil
-    flametongue_offhand = nil
-    frostbrand_mainhand = nil
-    frostbrand_offhand = nil
-    rockbiter_mainhand = nil
-    rockbiter_offhand = nil
-    mainhand_imbued = nil
-    offhand_imbued = nil
+    _windfury_mainhand = false
+    _windfury_offhand = false
+    _flametongue_mainhand = false
+    _flametongue_offhand = false
+    _frostbrand_mainhand = false
+    _frostbrand_offhand = false
+    _rockbiter_mainhand = false
+    _rockbiter_offhand = false
+    _mainhand_imbued = false
+    _offhand_imbued = false
 
-    local mh, mh_expires, _, mh_id, oh, oh_expires, _, oh_id = GetWeaponEnchantInfo()
+    -- GetWeaponEnchantInfo 返回值:
+    -- 1: hasMainHandEnchant (boolean)
+    -- 2: mainHandExpiration (number)
+    -- 3: mainHandCharges (number)
+    -- 4: mainHandEnchantID (number) <-- 这是附魔ID！
+    -- 5-8: 副手同样的参数
+    local mh_enchanted, mh_expires, mh_charges, mh_enchant_id, oh_enchanted, oh_expires, oh_charges, oh_enchant_id = GetWeaponEnchantInfo()
 
-    if mh then
-        mainhand_imbued = true
+    if mh_enchanted then
+        _mainhand_imbued = true
 
-        mh = enchant_ids[ mh ]
+        -- 用附魔 ID (第4个参数) 查找附魔类型
+        local mh_type = enchant_ids[ mh_enchant_id ]
 
-        if mh == "windfury" then windfury_mainhand = true
-        elseif mh == "flametongue" then flametongue_mainhand = true
-        elseif mh == "frostbrand" then frostbrand_mainhand = true
-        elseif mh == "rockbiter" then rockbiter_mainhand = true end
+        if mh_type == "windfury" then _windfury_mainhand = true
+        elseif mh_type == "flametongue" then _flametongue_mainhand = true
+        elseif mh_type == "frostbrand" then _frostbrand_mainhand = true
+        elseif mh_type == "rockbiter" then _rockbiter_mainhand = true end
     end
 
-    if oh then
-        offhand_imbued = true
+    if oh_enchanted then
+        _offhand_imbued = true
 
-        oh = enchant_ids[ oh ]
+        -- 用附魔 ID (第8个参数) 查找附魔类型
+        local oh_type = enchant_ids[ oh_enchant_id ]
 
-        if oh == "windfury" then windfury_offhand = true
-        elseif oh == "flametongue" then flametongue_offhand = true
-        elseif oh == "frostbrand" then frostbrand_offhand = true
-        elseif oh == "rockbiter" then rockbiter_offhand = true end
+        if oh_type == "windfury" then _windfury_offhand = true
+        elseif oh_type == "flametongue" then _flametongue_offhand = true
+        elseif oh_type == "frostbrand" then _frostbrand_offhand = true
+        elseif oh_type == "rockbiter" then _rockbiter_offhand = true end
     end
 
     last_consumed_stack_ts = LastConsumedStackTS
@@ -1579,7 +1614,7 @@ spec:RegisterAbilities( {
         id = 8024,
         cast = 0,
         cooldown = 0,
-        gcd = "totem",
+        gcd = "spell",
         max_rank = 10,
 
         spend = 0.06,
@@ -1588,16 +1623,25 @@ spec:RegisterAbilities( {
         startsCombat = false,
         texture = 135814,
 
-        usable = function() return ( equipped.mainhand and not mainhand_imbued ) or ( equipped.offhand and not offhand_imbued ), "must have an unimbued weapon" end,
+        -- 强制显示为已学习
+        known = function() return true end,
+
+        usable = function()
+            -- 如果主手已经是火舌，不需要再上
+            if flametongue_mainhand then
+                return false, "already have flametongue"
+            end
+            -- 主手没有火舌，可以上（包括切换场景）
+            return true, "need flametongue"
+        end,
 
         handler = function ()
-            if equipped.mainhand and not mainhand_imbued then
-                mainhand_imbued = true
-                flametongue_mainhand = true
-            elseif equipped.offhand and not offhand_imbued then
-                offhand_imbued = true
-                flametongue_offhand = true
-            end
+            -- 清除其他附魔状态，设置火舌
+            _windfury_mainhand = false
+            _frostbrand_mainhand = false
+            _rockbiter_mainhand = false
+            _flametongue_mainhand = true
+            _mainhand_imbued = true
         end,
 
         copy = { 8027, 8030, 16339, 16341, 16342, 25489, 58785, 58789, 58790 },
@@ -2524,16 +2568,25 @@ spec:RegisterAbilities( {
         startsCombat = false,
         texture = 136018,
 
-        usable = function() return ( equipped.mainhand and not mainhand_imbued ) or ( equipped.offhand and not offhand_imbued ), "must have an unimbued weapon" end,
+        -- 强制显示为已学习
+        known = function() return true end,
+
+        usable = function()
+            -- 如果主手已经是风怒，不需要再上
+            if windfury_mainhand then
+                return false, "already have windfury"
+            end
+            -- 主手没有风怒，可以上（包括切换场景）
+            return true, "need windfury"
+        end,
 
         handler = function ()
-            if equipped.mainhand and not mainhand_imbued then
-                mainhand_imbued = true
-                windfury_mainhand = true
-            elseif equipped.offhand and not offhand_imbued then
-                offhand_imbued = true
-                windfury_offhand = true
-            end
+            -- 清除其他附魔状态，设置风怒
+            _flametongue_mainhand = false
+            _frostbrand_mainhand = false
+            _rockbiter_mainhand = false
+            _windfury_mainhand = true
+            _mainhand_imbued = true
         end,
 
         copy = { 8235, 10486, 16362, 25505, 58801, 58803, 58804 },
@@ -2561,6 +2614,20 @@ spec:RegisterAbilities( {
             applyBuff( "wrath_of_air_totem" )
         end,
     },
+
+    -- 自动攻击 - 后备技能
+    auto_attack = {
+        id = 6603,
+        cast = 0,
+        cooldown = 0,
+        gcd = "off",
+
+        startsCombat = true,
+        texture = 135641,
+
+        handler = function()
+        end
+    },
 } )
 
 
@@ -2581,6 +2648,26 @@ spec:RegisterSetting( "shaman_rage_threshold", 50, {
     desc = "当法力值低于设定的百分比时，插件会提示使用萨满之怒来恢复法力值",
     min = 0,
     max = 100,
+    step = 1,
+    width = "full",
+} )
+
+spec:RegisterSetting( "auto_imbue_2h", false, {
+    type = "toggle",
+    name = "|T135814:0|t双手武器自动切换附魔",
+    desc = "启用后，当使用双手武器时，插件会根据敌人数量自动推荐切换武器附魔：\n\n"
+        .. "- |cFFFF0000AOE|r (敌人数量 >= 阈值): 推荐|T135814:0|t火舌武器\n"
+        .. "- |cFF00FF00单体|r (敌人数量 < 阈值): 推荐|T136018:0|t风怒武器",
+    width = "full",
+} )
+
+spec:RegisterSetting( "auto_imbue_2h_aoe_threshold", 3, {
+    type = "range",
+    name = "|T135814:0|t双手AOE切换阈值",
+    desc = "当敌人数量达到或超过此阈值时，推荐使用|T135814:0|t火舌武器。\n\n"
+        .. "低于此阈值时，推荐使用|T136018:0|t风怒武器。",
+    min = 2,
+    max = 10,
     step = 1,
     width = "full",
 } )
@@ -2606,11 +2693,12 @@ spec:RegisterOptions( {
 
 spec:RegisterPack( "增强(黑科研)", 20251221, [[Hekili:nJvwtTTvu4FlzYmSKM4ylhsA6GZdDANPnpK8GYBDQKUw(ASg0IhjzOmdJgiByiqAOqwH0eA2GSqsBAziS08JPwsMN6FHEUx5fTAdnDsQFaSp3Z(57EohjUmCxGJTaYeZDoM0mdKHHjtQ0mzg4ez4ynhRmMJTmsCy0qWxurkWFT)LF2ENT6BVTN39zZ7(Wf73sOpM(jSnMSgQarDgAv0fbw94XEMLa2CxBdNPNGJnFfjzZVvLlFCwnlZj5yrvmlPPdgAH5TVXkCSLKkua7ja2qKJT(7VBTnFUZmtu)s7wBN7yFLQUB9S9UYCU7UU9d2Q2wx)BWdljl58RtBp7TCNUQD1nQT7Y)1ex06SwNL49Z8WABDv7FCwNPVMZREQ9Dx1(NM19QlA)BRbbM9uB7EVl7S4RDMDYgYenm(opF77HOwxROKmeRh(WwcSLqki1VWs4RvlHufXkyvtlHJzj4LZQFJvD2EfIlt9lRZsKX5TVX((p152B4U2wUt)o7QVGCeripgjo5BVPhV52NF84gIq3jFXX37rxh(h8Z5UzTDxaCoNDwZzJv8IClHZyjS3TFU7I)H76VY7xp66o373DMEbitqj4EPQUx(n7T8uaH((QZFHAV)(qUPF6z2p(z2l34mF6Q27UM7s)PN0t(cqANB9gN78apc0mT7SlrejohL5yzDxADNhovY(6ElKGY)ihBDluAei12(j12CMVy)7VnJVp1Ht3aAn)0k4b0QpKMFf2N)By93vVTHOvVA9hDX)vPI9r46VyCadxKOPKMQrQY6yrnL8iZpl3XhvsTqXk6JXpkgvwt9OsfZDifKePvqbEjL8vWf6PnHsidEJYyz5YAJI1JxJfLHoUMAQdvb3uP6i1HZ5XBQOhNsb9d8ewowMyn)hQ1j6uRyrFQmErLLgQKPQK6q8gLKWYficMVsXIP8(zQcAJQgVKIizzETI8MLW8yzAhuJwsJr6ML4n1mXkuvm(4uYfL0XrPokmDrpkzKKFIX7eL1i0ADwJAlelGd4NAESHjpquMePEcr8vcfZsPklAoy2bcRLpyeYNcCXbgnacyqhgkzykjcMEimHDdSjFEn1kgPmLW6zsJBpNKNPSyUm(vqfdmVeuOm8tmAPHw9BavqYE12aNJ1bYgLL0LmJiNQ2iiIJripcOgvSIe24m5Y6NtXsq6HVfMUfCubHLnm11uAMLnmHvLYnqpH0wGOQ9vJ8AYMDvx7xpoGnmm10vaTjnmosjeqXAIdFuXXeLHlni9HWMg5YCucajingA9fQEddoBpEuHYMc5QgFbj8zYDA)k37Ujv5XhUT7eaLjOwrIqc2GkskSkkVmGetSlH)4pGbqJG4LrgLIqmAcOJnxc1fPNinr0XKRjgdYK2VovqdPG84iov1uOCYGMufhRN2mecZgjCJtZ(OLQs5EIqRP5Y(FvnGcdh0pfcsHs9iPtLnB3UX3a3mQKzjj1mPHonQiANrOvGj4sgP8KIkauy0XGVixGJDeSUbOxVNpi9NZKMJDuKojkmGhbawdy(z(7DUN9R3X(kpP3c4IOkYM9Ax921xz19wEI6pDYABorTTwQ(up3EMvR9(1Dw8D015DF5lzQVYSGS12CoV18j77VWCWZi4mlSQ2J7nM26924rbCQEd7zEGNvHhIGP1dI4zzkxCSYqoWG(CvE(f81ZrFolVCfejTgNWX2iRZ9LCMqWs4QnfwrOPfwxcXXEilHqDTTe6XsWp5GnVdAnFJDi2jBi70K1OD53h(qIoazIttD35PseF6eDk2doNPJomOQbsuvDzceSdOLqM2QpmKMO8t6Vs2AivOc5P8ZKhgkehFUFoIRHqi(pDa(9nuleFzsNyWhCMbSemeSzd5eK(Ru1Kjr10Hbw083auureJfiXgAMk1Ijd(7QfBR4GZxP6nmyVdjKa(yW8Xj8N)9nHnC6pm2las1Rtl4c(h1sAoWgzamhltO7anMftZUrNh7vopn1hcar9nzoSVEQeZmDy(a1(HNthxbW7yQHIc2P51qUtaiERb7HBrMocxXwiy6cao08(2rvmZ8Teg0sGmcQf8nMnjOgTly4OBgaQgkBn2oOTtK4gcT9bFZ9PMozyEmRo02sXS(anCZMSLsUt9bb20467GbP2A9clHJyjqwXOZqlMK71hA3JgZQ82)GA3UTdshMcysE1FnEIXwJ3)im4om(6)ddUtg4DGhCNmY6G1WjzqrSViblHXh3)fVypj8luW3rbFPcDVnXj722buawEKbUW5vJ5vUdqYYyrYwgeg5(N)]] )
 
-spec:RegisterPack( "增强双持(黑科研)", 20251223, [[Hekili:TJ1tpYnnu8plCbbcr0KSZUfKao0BWHLdHBiCgNeNjwJJDKTZmSxgTaQWYQkvwPvQiHulGufqVWjqOs5tdn7m9Bb2j7K)m5FtNw4s5YOO4N)975NFVFV3eGj4Ja2(qjcCS1iRdnTSgBmAK5iZBaSLNeJa2XqVzWPQhOWi1VP)49sF8JsVZTV62F2R90)8Iv)0fR((lFDTDNqyqFnEcwc3tzB(YPN)Dklw9l)(vF9PaB3emr((uGBDAnpYW0A0HJpaydtKHmoWE93EX678vP36SvxEFGDi23hLVnKWRnS)4QB4tuoeNfGjk3ayphXfygTfYwa5umDQayF1zFt653p9xFC6TEWtE0xE0t(JhE15NU(l(R0ZU76F4N)7t)8LFaWMGfsH(mcziDS74IFKaBef6sq(GBQw2tQj02leIPoe80qPMh1l4yjIJHa7xjInx9QLtE1Lt0Mph5GOOimsSCY7TCIz2cUjbbgrqeri5SiNfiymJAiKQlfLvV7YjhKzMyHcjLDkUcHuFdos)Coq5UIXwEIHhuixo5nwoHOUgOENubhwqWEdt(9dhhNF(F6DF4Ql)T1NDpv85ylDGRsqQML7umB)ItQW0HA(pO)7Qi40iOJKjrrv5md6amhLVuzq5DwoXkJCjKpfjnwGLHy6yntJ7NPm0OS5W(4jjU9ud1PXuZXH9ZHqY4rQObEgQkl18vRYyxfZn8zlOAgoAGtbrPi4iczEZQLxlXEZ2KyFnDsCK(y54Jr5NGS7JB0p(iixg2eFFM0Oc11ssZG9T6h2Iel1(XiIFJ7G8xxefE7wGZT3nvq1cvnbFdnkOmhnGRbNdDiqry33yQDkZuFS2a1)YPYw)hKkxTW0d2q64LarZo1(kd5BjRueNEw77SFHTn1S)VQZlVQo(Oaycr2MWZw(vEqmV4x7CL34vufQVqUx32kqCJ3hbPqJypzE27O2KUklfGeIdlWrgQs6jOievnbxltJuKchcvWRMZd75WZM8TJOY18w6lkvubsk1ZtAKJsgakM5ivwt2LErvB3ZJ0BP6bLokpH6K)SJES08HtDYhtpRbXWdI0aIDqMy7fuN6XnMLRUR0yELDxK)fNwEzfOlJi3xP8bqPTcETHBjKF0Gc5Bvq1RSCxC2Ty3EOm3QeF36EpZkZTkW3Hq4n3DL5w117ru85yyPwN(st1a)hXQJqvMluRGsvd98mFLzhdXTlDtA04sJxBkxUD0bAGgDMdirTZDNI5ipwKlSz)PQEgM6hKWp56YOA5PAPCmvx47GJCtq(zb1QVoekCeXicjMTaXBRjYGW1fw1t)Lm60euHtYH0zBSWOPbk1Hp1rBZBwmnDN(KsBRIl1lTx3(4fqct29JluG8)q6MpHuTpEKkq4PfR0gc(Nd]] )
+spec:RegisterPack( "增强双持(黑科研)", 20251224, [[Hekili:TJ1tpUnru8pl9svRqyf7DZsrc4qVbhwoyUHyShBpjEugpJ14XjSxSwbQWYEbwPvQiHulGecOx4eiuP8PHMnPFl4n2BITx)VW2fUuUefnZB(97nV59(9Ejit0hGSdWkc6qRrwJnTmpWW0A0493dzRokMGSJX(ZWtHVWXrWNl)(hT8zp9oV4poB1pE2QV987M5EhR7Qn7iMahOHlrKk9btlSz5PFdy2QF(3U4logz7LszQ3LJ8QY6O7znczJtvHcjYE9xF26V8Zx(GtwD(Jr2H0GasH9Ke)2a9dREGpc8ePycLb8JSNtKjubVkllWsoLpnbzFXjF1YtF8YF5zlFWp88N(zh88F)jxC6XR)0)C5jpC939t)1XFs27HSz0evI(wHfeDW6WTFOq2eo2Jrcq3VW7K0yLMo7x8WNS68FD9jpcoMFXs(Hyk3HrNgQ08dliPkIKIr23ksmhwkZ92zUAZNtCiCseLKK5(ozUM5B4LozIreMWsusrKZccowWnsuWRdy1BN5UxUzjlaKa7aUcX8adjr)9cGkCfJR4jg(4evM7RL5YGheU)rvWrmzY1ggi(COLoWvjivENVE3t4Ao(kH6UJWa)71(B1MteHNgHDucfjQQVL7ctOssXwLx(3kZ1k3jvy5uIYybvfs57RzA)(zkhnUyoUpEsJBpfaU1MAog3phjkHmcIA0zKQSuZxTkJXvm3iqSGRz4GbUfmqcWjju4pRw(RI6pBtc8L0POr6RLtaLuCdgRX)n6hFcwQcBIFGqzuH6AjJ5WEV(HDBkbCEkHf04nOy5TrH3Sf4869qBPAbK7l3qdaL5ObCn8CSddNe29lgCsvU6J1gO(xov26)Gu5bkmF1tS02h3O3r3YkBn(MssThn0)x15vxvNaYeCkt1MWZv8RIGyrXV25kFXROkuFJcVUTDW0gRhH5yJyFvrA9O2KUktIXmMJyIJkeQgyKichMGBZ0iTw6udPlrVKrqRmHOu6PgH4pg2Wrcted4ljqUH(PDB1q(2WiJu)CBQgY6w2R3A49krxMYDk(UJES0IHtDkMlpVbXWdI0aIDq)4QBaXJ9BmfwDxzxMxPSaXtWuDPXFZjLxNVRRs(aO0LqEhACvYghoSmSoE3IDxdL5wL47w37FSYCRc8DieE)DxzUvD9EefFjgwQ1PV0u1XVrSTrOktaQvqb1qVmZxz2XqC7s3KgnU041MYLxhDGgOrN5asu7C3PyjXxe5HB2FQQNr5btsLhDz5sT8uTipLRR0DOrEPKG8GA1LdXjojXeglwSGir9(tA7aUUWQE6VsWNMs26KsmF2glmAAaOc8XoABE9Ttt3PpbIzvCPEP9Y2h3ajm5VpE4esW7ZB5)mc0uIj(AXkTHO)o]] )
 
-spec:RegisterPack( "增强双手(黑科研)", 20251223, [[Hekili:TJ1tpUnru8plCbTvizf7S72Ie0dCdoSCWCdX4m2Es8O1EMOXJt0EjkfulBxQu7kTsfjKAbKqqlhqcjqvLYNMTEt63cEJNDtSt8)A0Ybq5suKNzE)EVFV38(5NrMOpdz7JLe0bwDS2Z0YAxJoDmn39MiB5rdji7HyVdXdG)WWrWVP)4tsF1ltF4dU4(FZoV5VoD2pF6SV)SBO23rHCSVYEX8eHhSx9YPN8DWoM9S)8I7pfz7MqdLFmd5UcSDnS6ADRUMiBCImGlq2Z)2tN)WVo9Uhp7SNISdO((e9XiXELz7pp)b(cWHe8(0qWnq2JiIykNvcyJXcgLnigzFXXpk9KNM(BVk9U)0RF592)1V45xCY05F1FNE8JN)d)Y5t)YjFcYoKglJvXiMtuC3bl(rISjmSBiXh9rWYEsfG2H4ryNyPGEi4iEcQKiOyGAXIbePXyQmGYSGZEGv92jcpic7i5ssuE74M0VVrFQGOxYqqIWuw8KEFWKEwt69Ut6vaPDvi1TEKYSgJpcxhojdZmU6mJioegjIsauV9hoPNPcJDRhJyjxe1eRKHGpxAKB3fdqfs7vpsEbW2DcPdcKQ8CE0ENi(i4rLhiqCKTqwGhHjHa(8iNXe8qod8i4sXLHB22IhdwYq5AobyM)s382ABdNzfpXWdhlN079M0leUgW8osxylOd1o(BE8ZND2Fm)4NOcY9vvC5IUc7Svb7MfGq8TNc)B2qjti0AWjoG7Dybcws9ou5hGfUvlUM4MiILvLH2rvjKdOYO4Lwzn29gzgbmtZju9w3PfP06Wtf0V)Me01fNxA82N4m70GlCvTIJlpSsUVzoR9uwbalN2mBQNALoD74KgA12QMtzgQHoPeSqgS(1I6sWAhSHUNlJ)4akj0Fngq)ydF(ywM9kRhPBTNAbwJH8I4kCKkdacFliW)LvQAirDTOu1qoS163Bv82afppCvQDxfGl2rHy9ArxRsgBRG3wbVM4S2tzBf8(pUGNpPpobO9A088WHHo8(oYaOvuijIWGHexfon7OvLuyUSslNCvXf0otzRGPR98imdBm0tQBc2Pgn18DvRiFF55xAtq9jMiLQzLbIddl4iWda3oqqG0QkPSOEkBzyqzQx2EYtzvR4wBp9CDRfjmh9)DudJRhj3r)XjYE3KQfJBHSXQlaH9(1G9kdIv0vmBHADRF)I9BkKw5iLE7(AxzBrH0S7Dw6V)mLa()NL4kwiVvT7TxTRIx5RGcy5VZxZXu7OSkedBxgAVYf7QrBSnAoRPVvLMOBf6uBIE46(2BZ0zLoUNcQk6tTO)sUz2wMMl0gf6CwNR1WaDs1h(L4XJCXLkzN7kGsEJYuLYo0i3esojmOs3VFI4OllIwiCEnKylRozdZRn9At50wKAQXfht8)u2vFg)CFa)ZN(i1h1)b3b(D2D(1ZNEkiDmK4Pumuhf9p]] )
-
-spec:RegisterPack( "元素(黑科研)", 20251223, [[Hekili:fBvuVXnrq4Fl9fuRqYY3D5AisasGep08q6dM3qS2RT378QyVRL967uKQSUqvAsRs6LGsLquq9qcAkuPwEaOTPf4htpBF3t8xGzTtA9Ly7G4bqN0D27m733mZ(nZTOwOpfPzJfe0ATvB3Tv72lPOQQ2wDfKMydFcsZhBToUp8ad7bFNS1nZ(LjxE(lpi7OdYMC4vKESHlhBlrkKhfybEvyo5o3h8i7h)T0BpcPzgrDfxJHmpdHDGT5tSqRTmsZHABtkCHeAvfoF2SV6GzJ3ozRDYo8bFE8QXR261J2C(3mA(w7LS)ozB(4SDEXq80F)pZo8r)1R2nDYls37jZ2(NMD8JnJ6n7OhMm(GKX3XKhgMEZTsU1VcoL8Qrj7)0I9(6rFr8QNcZSN(m5w)UDtFWpKE7)aCD6Z3lzZVo9UpA2E7N7ABG(p66FcebZE23M9WxMD)NKoz7LYMS50NFy692D6XhNEVFE(2Jt((JME8DBdyueePJ3F(T(sadKMlnuekRFyob(zT8tfcdB6sSrFmSSLGYzinpCFpSUGliEinRaQGeqXYkBVEkLSPyZhYqcOcFkyIkHRhnGOZ4dWncwKVeQondLWjIztccf8GfcnP9beDcJ4rjHXgFyBjyl1mywoykt3L23rWOS(nIxljEDVG80fKU6HoCR1lJ1LIneuR1bgInEh4zCqFIqrqbFfCDBkbG)dIn6kz4QnZGlEaw3mcY)YeyZfkL4wjG4bjMmQJnSWHcDjxVRiapG4w8Sl0yWS2qY4YnZ4qWZaaxkX1(ChFfl)gzW7Dbb)PfADtURaj)aTF9WrWlNSXk29c1rzE5Gz26upZiW(ILEbN1pIOpKG95nPlptwqWbcNsk68tPCl5c3QmuuvQYcMwE9sAnSRRoVNUWbuvUepcd6eVy9E(2kErx292SMVS(Aiv4qzDlA61lgQkB7pPTO2s8)mPALA(67qQx3KZJhFqE)xLIUlURO4a8C9DfOE(As7UNQ7Roe9WmSIVLi249Jn6OgBCJBeBC5fw9QQLI7RuZ4P67iot5Okz2IrS6BPieYwzpuX0zGJvQnr(3pxOQboavTuRLRtIxMVf1o24sGiPZYRSCHI8TLoG4qIqaXFOcWVLRU0g0ueqGq01UHzZY)OoG6xynpyQzGrtJB8diwCpt8Bg48F7KMYZlRvS3P2W6)5PvN7iiVKoaK7YfkDnRH4azDh2X1885bccOi6eBuaESr(TquIxvECW7rDHbtqUHdj2xNv5f)WrchEasR8vYYjh93d]] )
+spec:RegisterPack( "增强双手(黑科研)", 20251224, [[Hekili:TJ1tpUnru8plCbTvizLKDZsRe0dCdoSCWCdHDgBpjE0Apt0mJt0EjkfulBxQODLIurcP2cie0YbKqceQu(0S1BY(TG34jj2jX)RbQybTxII845979(9EZ738SvtRpYY0djXwh0QrR2nB1AxJw7266720YuEuFSLzFK7HOEWFOOq434V9rXV45Nn(bX3)ENF3V4IV7lpB8PQ36OagYtznblI7cV5f)XPt)HtJp5RN(KjtF6VD(DhBz6ercKVp1YznqBy04gnAUNLjks6Z4wMZ(QtND)pp(2hpDYJTm9jEEy9UWc38m9hNDdFc4pCwxsa4fwMdWCbHr3eRHioLq7jSmp)4heFYJJ)5xeF7V)Lp)o7)YF)zNFY4zF2FgF8dN9n)4zJ)0rFGLzarifQieXWkE7GL)iTmXuKta2Z69GLDLk8mdqdq2cjNCi4hUCIeZjiGwr8EyPXqI0NqBb79GwLBNquVqKTKjXHzTJtu3UgDjCSEjdooerOIrDENrDAnQZBoQZkiTNcPDlhPeRrzdqLHtu)eJR2ZaSnMIdjya1B(UJ60uHXELJHqY4HvXkji4XKgzE7vdqfsTZhjvncN0xd3fp8ztN8RZo(rPEGRpyg7aspFPk)N1lEJq2a4r5hGq8LSqcHeIWbGFXcThIr9zuWtHdkZPHKxtmeSKHYLT9ruVu3)MABd7znpXWfjKJ68wJ6eahoOUhPcY9vvCzIUuND7CqW)AVghvm1a4)2vuYeaTfSf(m3dxHiLe3dNBHRxJJjorCHSOmXoQkHmaLhvMALnyXRLyeWmvN40V6o1i1vgEQG(gBtqxwCo341mbdEqZgv4clYY2oSGc5(Q5S6tzRay(0wZQ6PwOtxpoPIwT1Q5uIHQOtkgXL(BESOSeS2bRO7zA8l8j4aVnya9Jn8ydPj2lVEKoLURLyneYl8f4ivgae(wsGVMvQQir9pIsvf5WARF)VJINlAtjUlVkzfR(MYyZv7YHkxgR1sfF7I3f9iUsW7kbVQptulk7kbV)Jl45H7IIaAVenpxuqGnRRT0h64eGdXuyiX1HtZoAvjfMPvAzKRwDbTZK3kiYgpperrg9DL6EDnkrtn3IaFeyay6wIRnpzw)cQeMB5u0aDjbwkvtrBOTsIbaYGJHeEs6AzR7IvClT1D7uhLhrT1)3wnmUEKCB9hMi5Ujflgxd1H1xacU9lb71gHAvxP56Q1)DUFrrIIfTLCpD)6uz7)jQy5lwTO(D6DMe)lpvDnRlFQD1)UGvtM1NlRsERqrSvUYxrkGzUZ3RIOxrGwIyy9YqTZxSReTX6O5SH(wrAIofOtTn6HB6BVktNL74EkOkOp1Y(lzMzln3UsBuOZzzUwfd0jvF3xSll0bLRKDMtekrmcvvzBtcDIG1tzxc1RBe)O5fx5jCUTj28Qt2Y8AvxBkJ2Iutnoib27dPl(e(7O)i6tFYKRn)R5FVBb)o9w)uYh0x0h7QumuB16V(d]] )
+spec:RegisterPack( "增强萨-双手2(黑科研)", 202512241, [[Hekili:TJvxVTnvy4FlCdf4IOeNK2ojGl4kyx0BmxBNtSpj5O4V0Xh3qKMIYguwAjfA1Q4JrfJIGTQPXM2nOswR2pMzNKEf)f49CSz2jyhN11jHe9MilFE973VpVpNOus5tvK1rmSYgsfLQwssQsHIfLwVYAkYSUoyfzhKwBut4blKj8BWV8tbNoA6Ehh8ndhV9xj1R27C(Z2FYd2FYpFW7YLURHnsNRvxBpQg8fkY19igSpXsPEAMATQGOoynLnat2IORJdfe7QPip95)G)jpC8o9N(5N5F63hS1GjJEW5BT7KZECW9g5p6R)yCBIbz8t3oy43oz7bbd(d)Zo8f9VLISbXL5k8dIvtdm80gIGfPXi2wW5OnrQUmkPn4JyluDdSUYhPWaVlPyUmBQzQIvMlw8BK1OegMsqkYVvVAmIwBWU9Q92WZiAtmRaJyIvz2Q6eCVAF4h0R21ITsddi5Q62YwRnx1vYu119A0OGjcBaUKTPAhmYX2QGldksHkT8CryDpQlJRZQxmDcQSAcvsA2IzbbMADBdHAxnt1QJfkorcSGNtSQWikRvCiVwYKEYZMnPVEMMJHmWwmUBd5(WVTqKGIQqOZ0IGn0lOB3XkTGk8yUDUws3PbHIvTS3enNZuQ4LI3eLPF)zFRj6ZuJo596vRyHYLxShxQ0IlWIGGzZWMIWp2l6aJK0OtOyteXYv4msfJnOgYWq1UHkRfwfBGnHyZvyuPL2OXQgAPmaBAP1n2jecgPzKrc)m2hmrnnrHNimD2ZFrdCDiSweRsffwXezHk4OXeHMlMXGSNlKRrWbQuaGdInkgkuq2mE4xCmaKa1qUmk8wEOXUbYd6(NhrPdXshkiqZBAakzHuWZkTqWxsmR7f1DW14Mq(WcBsWHvJYZANgE0UrtQ5IfTmwyoOdbEeZ2QPhoHvQKmA9CXQGrmDNlyRMuih7Ob6KsS6)A2AUc)CYpd0qdmfeZ1Har4sJna1BaWYYZfaHX0sfX88HMWMQsoAcuUslSShciKQYtlvUASYOEwQHpRYxjfUysnCzkYgNdosAkxA5uUMbgTjovOHL5ZJwBk64DOynBZ6O4E(xNETC7MFTNxwQU5SNzE1wvKZY6WDzjbEVXnsc6L6jjXKN7ieHMk8ygq0SWUS5XQYALM0YrrAH4n5S4pjJQ8tFlhVeTwqxH6lRoPX3zMMH)HBHwxykrnCFHlpfjZx7o7BLRCH42TqUr5sJRIsg04w7IPZ8OXTEY6E2CENHwu2S0UKigL)S3ci98QyOljgylpzOlrgy5aJ9MKbw2JUVHzGfTA7cELUSW((FfOw5Ra1Ucu7kqT)7aQbWADquE2hMoN(73py)D(RtVBWtonyRFBLORCUsWGVB6rhF(H9NE)B6FsF)r)40B)WGDo2)5pE8b)5l6FRExFYJEK00JgcFR)j7o(GNmE4nNC3Vy8D21)Sdhp82(p7xxPogy5d3t1GxQdVI2kIVT31hpyVGDUxOv9h9LvF5)(wOLfsbbIhRLnCl3G7SFWEhXVFGDdIb))6Jhhk)9p]] )
+spec:RegisterPack( "增强双手2(黑科研)", 20251225, [[Hekili:fB1wZnTru4Fl9LgOZexB5gUKb4HoTZ0MhOpiEwYRLxhTt0fpsRtAMHrtsjqCcouOjCnHsdxd3c0sltWKa)yQUy)u)l0ZUsowsXYg4Hw)qI9z)2Z35(zLkiDgjXkikw60c5fgRGGWy5kC08fYFmjr6S1WsI1qktHMe(Ibsh(BbMKz1mrvy302SULcivsSCDIg97nKkFq1DKXekweWwdRiD6JkjQsQubhIeBRij2(930DNN4V8CTp3EU7EdVZ3iO1J6C(vc2BBV70YT1L(o8uenI)VVKxZRfSudVgV2DVn(75(jNjevr6iJXDk9TgQidfSo2G6uAuNsE39x92Tv7lVL)B3KPt(fDMW)vV072p0)6Vo4XTcw6nEnEktm7cHG8x6I(V6QotCYpWpot49ZndM)PFzN7Dj4FaVRCv39wfmi)DFS)R30)5p07MB5u6uoL6C9NeS2FfS9Zd)19UK)T(t)Lw1BX3YfeCUgbl8YoBSii4qFZpCg33FB)MZFy(zE3)rEBeDwmD5(MlgS(7cV98pfUT)1EP)nUtOGlSM3F84GMRZUsAJuy0IbRVT)VTy22zNvZqX)h7xdYnICc33(a3DwE8pCBTRV9)PRmScRUF4onRQKBLDU5cDE(AEnw0FL7oUZeJ2TE7qNikwC4XdT75(Li3IHj4D3NH5uNmgiiw1UrZUGgMv09d07BzwLOX74NbzzqmM0gAGb1CLL)NDVL3l2178pyKk4QO6A0r8AC92BUvNnMR9dN3DN5CBTE7fFI3YB5((T9x7n8g4GN9mH2B2eUR7oR4V2lGaAWTwWF1vGoC)MqU9(JugBtLvXinGm5AMuIPXi87cTZnUS3Y3jKv3wxqy)XiHmZrjjQrSP285CH2f81tZN7Huykd8eIrfzBGcljrSbQSgUI0xlrHzymu9KiQyrOylcss8ZCkXUv16wZkRJiSPpvCk95oLy6CASm2aRtW2oLobuNMKj(DMbJQbcaokoioQQbdDPMgtwhpyAo1jtWt871JQVktQSXu5YMg1TZrjyRc5X9gNklutXPeO(c9uVnFSlewjkYwSLdGYhlEeTUnwg0TUDQa6rIdkmxMcXrJJOkXc8rnUDG0KPMGktH)yjWJTay21iGJLc3XZ03hwOKzdgMtJyAPq(mvt56vRMthH1SPwM6rr9C2uy9jp8nw)ZBjIRkQqowwJmPkL1AXzSWNoJ9u8(QeYYqdatVzxBpyBmz8Oy8WVn10shmgYu4ur)cPl9suOc9EMktbMWSkAyzkYAsm0Wc9OI6OFuoPurHuTiqn4uGJXJUHGGAyqNut5keCy684CBirfk0Stv7sCsB9izgzGIqOsKfIzv(8lNlciNFEgXwLG1QKRI5mg9lbeEmNOdwRZJRPmNev4AOPrYAiB10Oo(bq13eHWqkG5wbVpJ7a98QzGh1zfDIfMnlkC4gOWELVinnzZQYu197AT5KoKA4yK2t1qAtd40qz2Egr)MhKkqRJMuhfnPGrD2L5rTp7dpx9A9ykU84UBXSzk7b5FmLnrTVNiPuwFq0jFHtP85kwCWLwczpQpQhzgcvLyuip3aGH5OC1uOCEHDbu2E9CHt55d4HuQfgmCq7dCjGWhypMqIfbPMoLcAIUeuDOVgrzHIK4OS3MGvm1lJ6TGpR1QDxLkt0lxpkjexSkYg2IG10Qzod2AGRVh4te6hpdLK(S7w0czmvxe5oiaE9bdZOfg6tkmRwnMj9P)KHpUzDJny9ewPeFUZzpB8E((Es8rsPocrS670HSMqn03LWlWGIpvtit5T6v8U8MCzs)7]] )
+spec:RegisterPack( "元素(黑科研)", 20251224, [[Hekili:fBvuRTTvu4Fl9Lrdde2YXnjW2Gnyp08q6dAVn6v6kPRTUeP7viDLnbkcNvstAjPozKcJ1nQhS101cT7HT120UTFm1sY(P9xyNRusRCIKtzpSHbB575C)(oNZ97C0f1e9finBSGGwtTHA7MQnwrPz72lV4IinXg(eKMp2ADCx4bg2d(ozRBM9RJU80xDq2rhKn6WfInUS6cs32WLJTLWfYJcSaxrAMruxXvziZYC0yz1gGt(el0AlH0CO22KcxiHwiTcKtUZ9bWZ(5Fp92d(YjFZbtgUDYw7KD4dUE8QXR28nd2C63ny6w7LS)ozB(KSDEzF84)4VYo8r)9R3nD0lt37Pt2(Xto(jMrDMC0dtgEqYW7yYddtV5wj363aNsE9GK9FwXEFZGVkE1tHzYZEUCR)WUPp4NsV9FcUo(f7LS53ME3hnzV9ZDvfO)tV2NdrWKN)9zp8vz3)PPJ2EXSrBo(fhMEVDhF8XP37xMU9WKF8OXhFxvaJIGiD4(tV1xdyG0CPHIqz1cZjWpRLFqqyytxIn6ZGLTeuodP5H76H1fCbXdPzfqfKakwwz70rPKnfBEFgsav4tbtujCDObeDgVhEUGf5lHQ18Hs4eXSjbHcEWmHM0EpIoHr8OKWyJprvc2IZhmlhmLP7s76iyuw35IxtjETVG80fuR6HoCR1lJ1LIneuR1bgIn(a4zCqxIqrqbFfCDBkbG)JJnAlz4kZNbxCpSUzeK)LjWMlukXTsaXdsmzuhByHdf6sU(qraUhXT4zxOXGzTHKXLMpJ9bpdaCPex7ZD8vS8BLblFbb)PfADtURaj)aTFDWrWFozJvS7zQJY8YbZS1PEMrG9zl9coRBerVpb7ZNNU8mzbbhiCkPOZpLYTKlCRYqrvPklyA51lP1WUU68o6chqv5s8imOt8I175BR4p6YU35R5lRV6tfouw7IME9I5OY2(tAlQTe)(jvRuZxFhs96MCE849Y7)Qu0DXDffhGNRVRa1ZxtuBFQUV6q0dZWk(wIyJpk2OvJyJBCd49nZS6vAukUxOMXt13rCMYrvYSzJ4gVJIqiBL9qftNbowP2e5F)CHQg4au1SXz4s(2ZaQFHVLP(KWN5BrTJnUeOzAT0klviqFxLeIJqIqaPtOceowU6sBqpsabIyx76hvldMAgymVXn(belUNj(TdC(VDst55L1k2B9(wJ)FF4vEjThi3Lov6Aw9XbY6Eis7QE(8abbKaTInkql2i)wikXRkpo4DOUf3AdhsSVgRI76bHrKWHhG0kFLSCYr)Z]] )
 
 
 
@@ -2630,4 +2718,17 @@ spec:RegisterPackSelector( "restoration", "元素(黑科研)", "|T136052:0|t 恢
     "如果你在|T136052:0|t恢复天赋中投入的点数多于其他天赋，将会为你自动选择该优先级。",
     function( tab1, tab2, tab3 )
         return tab3 > max( tab1, tab2 )
+    end )
+
+
+spec:RegisterPackSelector( "elemental_pvp", nil, "|T136048:0|t 元素PVP",
+    "PVP专用元素天赋优先级，适用于战场和竞技场。",
+    function( tab1, tab2, tab3 )
+        return false
+    end )
+
+spec:RegisterPackSelector( "enhancement_pvp", nil, "|T136051:0|t 增强PVP",
+    "PVP专用增强天赋优先级，适用于战场和竞技场。",
+    function( tab1, tab2, tab3 )
+        return false
     end )
