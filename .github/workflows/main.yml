@@ -71,6 +71,14 @@ jobs:
           file_template="${file_template%.zip}"
           file_template="${file_template%.ZIP}"
 
+          if [ -n "$flavor" ] && [ "$flavor" != "null" ]; then
+            if [[ "$file_template" != *"-$flavor" ]]; then
+              file_template="$file_template-$flavor"
+            fi
+          fi
+
+          effective_filename="$file_template.zip"
+
           args="-n $file_template"
           if [ -n "$flavor" ] && [ "$flavor" != "null" ]; then
             args="$args -g $flavor"
@@ -81,7 +89,7 @@ jobs:
 
           echo "name=$name" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "filename=$filename" >> "$GITHUB_OUTPUT"
+          echo "filename=$effective_filename" >> "$GITHUB_OUTPUT"
           echo "flavor=$flavor" >> "$GITHUB_OUTPUT"
           echo "packager_args=$args" >> "$GITHUB_OUTPUT"
 
