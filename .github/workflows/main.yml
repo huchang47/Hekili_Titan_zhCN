@@ -6,10 +6,10 @@ name: Package and Release
 # this part can be heavily customized to your liking, like targeting only tags that match a certain word,
 # other branches or even pullrequests.
 on:
-  workflow_dispatch:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 permissions:
   contents: write
 
@@ -18,6 +18,7 @@ jobs:
 
   # "release" is a job, you can name it anything you want
   release:
+    if: github.event_name == 'workflow_dispatch' || github.actor != 'github-actions[bot]'
 
     # we can run our steps on pretty much anything, but the "ubuntu-latest" image is a safe bet
     runs-on: ubuntu-latest
@@ -39,33 +40,75 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Read release.json
+        id: releaseinfo
+        shell: bash
+        run: |
+          if [ ! -f "release.json" ]; then
+            if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+              echo "release.json not found at repository root." >&2
+              exit 1
+            fi
+            echo "packager_args=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          name="$(jq -r '.releases[0].name' release.json)"
+          version="$(jq -r '.releases[0].version' release.json)"
+          filename="$(jq -r '.releases[0].filename' release.json)"
+          flavor="$(jq -r '.releases[0].metadata[0].flavor // empty' release.json)"
+
+          if [ -z "$name" ] || [ "$name" = "null" ] || [ -z "$version" ] || [ "$version" = "null" ] || [ -z "$filename" ] || [ "$filename" = "null" ]; then
+            echo "release.json is missing required fields (name/version/filename)." >&2
+            exit 1
+          fi
+
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            git tag -f "$version"
+          fi
+
+          args="-n $filename"
+          if [ -n "$flavor" ] && [ "$flavor" != "null" ]; then
+            args="$args -g $flavor"
+          fi
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            args="-d $args"
+          fi
+
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "filename=$filename" >> "$GITHUB_OUTPUT"
+          echo "flavor=$flavor" >> "$GITHUB_OUTPUT"
+          echo "packager_args=$args" >> "$GITHUB_OUTPUT"
+
       # once cloned, we just run the GitHub Action for the packager project
       - name: Package and Release
         uses: BigWigsMods/packager@v2
-
-      - name: List packaged output
-        if: always()
-        run: |
-          pwd
-          ls -la
-          if [ -d .release ]; then
-            echo ".release:"
-            ls -la .release
-          fi
-          if [ -d release ]; then
-            echo "release:"
-            ls -la release
-          fi
-
-      - name: Upload packaged files
-        if: always()
-        uses: actions/upload-artifact@v4
         with:
-          name: packaged-addon
-          if-no-files-found: warn
-          path: |
-            .release/**
-            release/**
+          args: ${{ steps.releaseinfo.outputs.packager_args }}
+
+      - name: Find packaged zip
+        id: packagedzip
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          filename="${{ steps.releaseinfo.outputs.filename }}"
+          path="$(find . -maxdepth 3 -type f -name "$filename" -print -quit)"
+          if [ -z "$path" ]; then
+            echo "Expected zip '$filename' was not found." >&2
+            exit 1
+          fi
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release (manual)
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.releaseinfo.outputs.version }}
+          name: ${{ steps.releaseinfo.outputs.name }} ${{ steps.releaseinfo.outputs.version }}
+          files: ${{ steps.packagedzip.outputs.path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # another example where we supply additional arguments, this example is specifically to release
       # for the Classic version of the game
