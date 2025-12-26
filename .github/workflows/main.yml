@@ -67,7 +67,11 @@ jobs:
             git tag -f "$version"
           fi
 
-          args="-n $filename"
+          file_template="$filename"
+          file_template="${file_template%.zip}"
+          file_template="${file_template%.ZIP}"
+
+          args="-n $file_template"
           if [ -n "$flavor" ] && [ "$flavor" != "null" ]; then
             args="$args -g $flavor"
           fi
@@ -93,10 +97,14 @@ jobs:
         shell: bash
         run: |
           filename="${{ steps.releaseinfo.outputs.filename }}"
-          path="$(find . -maxdepth 3 -type f -name "$filename" -print -quit)"
+          path="$(find . -maxdepth 6 -type f -name "$filename" -print -quit)"
           if [ -z "$path" ]; then
-            echo "Expected zip '$filename' was not found." >&2
-            exit 1
+            echo "Expected zip '$filename' was not found, searching for any zip..." >&2
+            path="$(find . -maxdepth 6 -type f -name "*.zip" -print -quit)"
+            if [ -z "$path" ]; then
+              echo "No zip file was found." >&2
+              exit 1
+            fi
           fi
           echo "path=$path" >> "$GITHUB_OUTPUT"
 
