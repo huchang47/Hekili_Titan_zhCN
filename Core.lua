@@ -174,6 +174,8 @@ function Hekili:OnInitialize()
     self.DB.profile.Release = self.DB.profile.Release or 20170416.0 ]]
 
     -- initializeClassModule()
+    -- 先调用 SpecializationChanged 以填充 class.packs，然后再调用 RestoreDefaults
+    self:SpecializationChanged()
     self:RestoreDefaults()
     self:RunOneTimeFixes()
     checkImports()
