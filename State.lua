@@ -1,6 +1,5 @@
 -- State.lua
 -- June 2014
--- 泰坦重铸版优化 - 2024
 
 local addon, ns = ...
 local Hekili = _G[ addon ]
@@ -42,81 +41,6 @@ local UnitSpellHaste = _G.UnitSpellHaste or function() return GetCombatRatingBon
 -- This will be our environment table for local functions.
 local state = Hekili.State
 
--- ============================================================================
--- 泰坦重铸版快照优化配置
--- ============================================================================
-local TitanConfig = {
-    -- 资源预测时长基础值（秒）
-    FORECAST_BASE_DURATION = 12,
-    -- 高急速场景下的最大预测时长
-    FORECAST_MAX_DURATION = 20,
-    -- 事件队列最大处理数量（泰坦服高急速需要更多）
-    MAX_EVENT_COUNT = 15,
-    -- GCD下限（泰坦服急速高）
-    GCD_MIN = 0.75,
-    -- 高急速阈值（超过此值启用优化）
-    HIGH_HASTE_THRESHOLD = 0.4,
-    -- 光环脏标记检查间隔
-    AURA_DIRTY_CHECK_INTERVAL = 0.1,
-    -- 预读施法阈值（秒）
-    PRECAST_THRESHOLD = 0.3,
-    -- 启用增量光环更新
-    ENABLE_INCREMENTAL_AURA = true,
-    -- 启用对象池优化
-    ENABLE_OBJECT_POOL = true,
-}
-state.TitanConfig = TitanConfig
-ns.TitanConfig = TitanConfig
-
--- 目标移动时间追踪
-local targetMovingTracker = {
-    isMoving = false,
-    startTime = 0,
-    duration = 0,
-}
-state.targetMovingTracker = targetMovingTracker
-
--- 光环脏标记系统
-state.auras_dirty = {
-    player = true,
-    target = true,
-    last_check = 0,
-}
-
--- 对象池系统
-local ObjectPool = {
-    predictions = {},
-    predictionsOn = {},
-    predictionsOff = {},
-    history_casts = {},
-    history_units = {},
-}
-state.ObjectPool = ObjectPool
-
--- 对象池获取函数
-local function PoolGet( poolName )
-    local pool = ObjectPool[ poolName ]
-    if pool and #pool > 0 then
-        return table.remove( pool )
-    end
-    return {}
-end
-
--- 对象池回收函数
-local function PoolRecycle( poolName, obj )
-    if not TitanConfig.ENABLE_OBJECT_POOL then return end
-    local pool = ObjectPool[ poolName ]
-    if pool and type( obj ) == "table" then
-        wipe( obj )
-        if #pool < 100 then  -- 限制池大小
-            table.insert( pool, obj )
-        end
-    end
-end
-
-state.PoolGet = PoolGet
-state.PoolRecycle = PoolRecycle
--- ============================================================================
 
 state.iteration = 0
 
@@ -1421,19 +1345,8 @@ do
         return b == nil or ( a.next < b.next )
     end
 
-    -- 泰坦重铸版优化：动态预测时长
-    local function GetForecastDuration()
-        local base = TitanConfig.FORECAST_BASE_DURATION
-        local haste = state.haste or 1
-        
-        -- 高急速场景下延长预测时间
-        if haste < (1 - TitanConfig.HIGH_HASTE_THRESHOLD) then
-            -- 急速越高，预测时间越长（因为事件更密集）
-            return min( TitanConfig.FORECAST_MAX_DURATION, base / haste )
-        end
-        
-        return base
-    end
+
+    local FORECAST_DURATION = 10.01
 
     forecastResources = function( resource )
 
@@ -1444,8 +1357,6 @@ do
 
         local now = state.now + state.offset -- roundDown( state.now + state.offset, 2 )
 
-        -- 泰坦重铸版优化：使用动态预测时长
-        local FORECAST_DURATION = GetForecastDuration()
         local timeout = FORECAST_DURATION * state.haste -- roundDown( FORECAST_DURATION * state.haste, 2 )
 
         if state.class.file == "DEATHKNIGHT" then
@@ -2933,35 +2844,7 @@ do
             elseif k == "is_undead" then t[k] = UnitCreatureType( "target" ) == BATTLE_PET_NAME_4
 
             elseif k == "level" then t[k] = UnitLevel( "target" ) or UnitLevel( "player" ) or MAX_PLAYER_LEVEL
-            elseif k == "moving" then 
-                local isMoving = GetUnitSpeed( "target" ) > 0
-                -- 更新移动追踪器
-                local tracker = state.targetMovingTracker
-                local now = GetTime()
-                if isMoving then
-                    if not tracker.isMoving then
-                        tracker.isMoving = true
-                        tracker.startTime = now
-                    end
-                    tracker.duration = now - tracker.startTime
-                else
-                    tracker.isMoving = false
-                    tracker.startTime = 0
-                    tracker.duration = 0
-                end
-                t[k] = isMoving
-            elseif k == "moving_duration" then
-                -- 目标持续移动时间（秒）
-                local tracker = state.targetMovingTracker
-                if tracker.isMoving then
-                    t[k] = GetTime() - tracker.startTime
-                else
-                    t[k] = 0
-                end
-            elseif k == "moving_long" then
-                -- 目标大范围移动（持续移动超过设定阈值，默认5秒）
-                local threshold = state.settings.moving_long_threshold or 5
-                t[k] = state.target.moving and state.target.moving_duration >= threshold
+            elseif k == "moving" then t[k] = GetUnitSpeed( "target" ) > 0
             elseif k == "real_ttd" then t[k] = Hekili:GetTTD( "target" )
             elseif k == "time_to_die" then
                 local ttd = t.real_ttd
@@ -3348,14 +3231,7 @@ local mt_gcd = {
                 return state.spec.rogue and state.buff.adrenaline_rush.up and 0.8 or 1
             end
 
-            -- 泰坦重铸版优化：使用配置的GCD下限
-            local gcdMin = TitanConfig.GCD_MIN
-            if state.spec.priest and state.buff.voidform.up then
-                gcdMin = 0.67
-            end
-            
-            local baseGcd = state.spec.deathknight and state.buff.unholy_presence.up and 1 or 1.5
-            return max( baseGcd * state.haste, gcdMin )
+            return max( ( state.spec.deathknight and state.buff.unholy_presence.up and 1 or 1.5 ) * state.haste, state.spec.priest and state.buff.voidform.up and 0.67 or 0.75 )
 
         elseif k == "remains" then
             return state.cooldown.global_cooldown.remains
@@ -3368,14 +3244,7 @@ local mt_gcd = {
                 return state.buff.adrenaline_rush.up and 0.8 or 1
             end
 
-            -- 泰坦重铸版优化：使用配置的GCD下限
-            local gcdMin = TitanConfig.GCD_MIN
-            if state.spec.priest and state.buff.voidform.up then
-                gcdMin = 0.67
-            end
-            
-            local baseGcd = state.spec.deathknight and state.buff.unholy_presence.up and 1 or 1.5
-            return max( baseGcd * state.haste, gcdMin )
+            return max( ( state.spec.deathknight and state.buff.unholy_presence.up and 1 or 1.5 ) * state.haste, state.spec.priest and state.buff.voidform.up and 0.67 or 0.75 )
 
         elseif k == "lastStart" then
             return 0
@@ -4051,16 +3920,6 @@ do
             end
 
             local aura = class.auras[ k ]
-
-            -- 支持通过数字ID查询buff
-            if not aura and type( k ) == "number" then
-                for key, a in pairs( class.auras ) do
-                    if type( a ) == "table" and a.id == k then
-                        aura = a
-                        break
-                    end
-                end
-            end
 
             if not aura then
                 if Hekili.PLAYER_ENTERING_WORLD and not buffs_warned[ k ] then
@@ -5018,16 +4877,6 @@ do
         __index = function( t, k )
             local aura = class.auras[ k ]
 
-            -- 支持通过数字ID查询debuff
-            if not aura and type( k ) == "number" then
-                for key, a in pairs( class.auras ) do
-                    if type( a ) == "table" and a.id == k then
-                        aura = a
-                        break
-                    end
-                end
-            end
-
             if aura then
                 if k ~= aura.key then
                     t[ aura.key ] = rawget( t, aura.key ) or {
@@ -5276,10 +5125,6 @@ local mt_default_action = {
 
         elseif k == "time_since" then
             return max( 0, state.query_time - ability.lastCast )
-
-        elseif k == "lastcast" then
-            -- 返回上一次施法的时间戳
-            return ability.lastCast or 0
 
         elseif k == "in_range" then
             if UnitExists( "target" ) and UnitCanAttack( "player", "target" ) and LSR.IsSpellInRange( ability.rangeSpell or ability.id, "target" ) == 0 then
@@ -5572,57 +5417,8 @@ do
     Hekili.StoreMatchingAuras = state.StoreMatchingAuras
 
 
-    -- 泰坦重铸版优化：增量光环更新系统
-    local lastAuraState = {
-        player = { buff = {}, debuff = {} },
-        target = { buff = {}, debuff = {} },
-    }
-    
-    local function ComputeAuraHash( unit )
-        local hash = 0
-        local i = 1
-        while true do
-            local name, _, count, _, _, expires, _, _, _, spellID = UnitBuff( unit, i )
-            if not name then break end
-            hash = hash + ( spellID or 0 ) + ( count or 0 ) + math.floor( ( expires or 0 ) * 10 )
-            i = i + 1
-        end
-        i = 1
-        while true do
-            local name, _, count, _, _, expires, _, _, _, spellID = UnitDebuff( unit, i )
-            if not name then break end
-            hash = hash + ( spellID or 0 ) + ( count or 0 ) + math.floor( ( expires or 0 ) * 10 )
-            i = i + 1
-        end
-        return hash
-    end
-    
-    local auraHashCache = {
-        player = 0,
-        target = 0,
-        player_time = 0,
-        target_time = 0,
-    }
-
     function state.ScrapeUnitAuras( unit, newTarget, why )
         local db = ns.auras[ unit ]
-        
-        -- 泰坦重铸版优化：增量更新检查
-        if TitanConfig.ENABLE_INCREMENTAL_AURA and not newTarget then
-            local now = GetTime()
-            local cacheKey = unit .. "_time"
-            
-            -- 检查是否需要完整刷新
-            if now - ( auraHashCache[ cacheKey ] or 0 ) < TitanConfig.AURA_DIRTY_CHECK_INTERVAL then
-                local currentHash = ComputeAuraHash( unit )
-                if currentHash == auraHashCache[ unit ] then
-                    -- 光环没有变化，跳过完整扫描
-                    return
-                end
-                auraHashCache[ unit ] = currentHash
-            end
-            auraHashCache[ cacheKey ] = now
-        end
 
         for k,v in pairs( db.buff ) do
             v.name = nil
@@ -6418,36 +6214,12 @@ do
             end
         end
 
-        -- 泰坦重铸版优化：使用标记清除代替完全wipe，减少GC压力
-        if TitanConfig.ENABLE_OBJECT_POOL then
-            -- 使用计数器标记而非完全清空
-            state.predictions_count = 0
-            state.predictionsOn_count = 0
-            state.predictionsOff_count = 0
-            state.history_casts_count = 0
-            state.history_units_count = 0
-            
-            -- 只在表过大时才完全清空
-            if #state.predictions > 20 then wipe( state.predictions ) end
-            if #state.predictionsOn > 20 then wipe( state.predictionsOn ) end
-            if #state.predictionsOff > 20 then wipe( state.predictionsOff ) end
-            
-            -- history表使用惰性清理
-            local historySize = 0
-            for _ in pairs( state.history.casts ) do historySize = historySize + 1 end
-            if historySize > 50 then wipe( state.history.casts ) end
-            
-            historySize = 0
-            for _ in pairs( state.history.units ) do historySize = historySize + 1 end
-            if historySize > 50 then wipe( state.history.units ) end
-        else
-            -- 原始行为
-            wipe( state.predictions )
-            wipe( state.predictionsOn )
-            wipe( state.predictionsOff )
-            wipe( state.history.casts )
-            wipe( state.history.units )
-        end
+        -- TODO: These could be cleaner but also it doesn't matter.
+        wipe( state.predictions )
+        wipe( state.predictionsOn )
+        wipe( state.predictionsOff )
+        wipe( state.history.casts )
+        wipe( state.history.units )
 
         if state.time == 0 and InCombatLockdown() then
             local a = state.player.lastcast and class.abilities[ state.player.lastcast ]
@@ -6642,21 +6414,6 @@ do
                 end
 
                 delay = ns.callHook( "reset_postcast", delay )
-                
-                -- 泰坦重铸版优化：高急速场景下的预读施法
-                -- 当施法即将结束且急速较高时，提前开始计算下一个技能
-                if TitanConfig.PRECAST_THRESHOLD > 0 then
-                    local castRemains = state.buff.casting.remains
-                    local isHighHaste = state.haste < (1 - TitanConfig.HIGH_HASTE_THRESHOLD)
-                    
-                    if isHighHaste and castRemains > 0 and castRemains < TitanConfig.PRECAST_THRESHOLD then
-                        -- 高急速下，如果施法快结束了，减少延迟以提前计算
-                        delay = max( 0, delay - ( TitanConfig.PRECAST_THRESHOLD - castRemains ) )
-                        if Hekili.ActiveDebug then 
-                            Hekili:Debug( "泰坦优化: 高急速预读施法，减少延迟 %.2f 秒", TitanConfig.PRECAST_THRESHOLD - castRemains ) 
-                        end
-                    end
-                end
 
                 if delay > 0 then
                     if Hekili.ActiveDebug then Hekili:Debug( "Advancing by %.2f per GCD or cast or channel or reset_postcast value.", delay ) end
@@ -6740,8 +6497,6 @@ function state.advance( time )
     local event = events[ 1 ]
 
     local eCount = 0
-    -- 泰坦重铸版优化：使用配置的最大事件数量
-    local maxEventCount = TitanConfig.MAX_EVENT_COUNT
 
     while( event ) do
         if event.time <= state.query_time + time then
@@ -6758,7 +6513,7 @@ function state.advance( time )
         end
 
         eCount = eCount + 1
-        if eCount == maxEventCount then break end
+        if eCount == 10 then break end
     end
 
     for k in pairs( class.resources ) do

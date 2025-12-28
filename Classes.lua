@@ -1005,7 +1005,6 @@ ns.HekiliSpecMixin = HekiliSpecMixin
 function Hekili:RestoreDefaults()
     local p = self.DB.profile
     local changed = {}
-    
     -- 修复药剂列表为空的问题，by 风雪20250416
     class.potionList = {}
     for key, potion in pairs(class.potions or {}) do
@@ -1046,10 +1045,8 @@ function Hekili:RestoreDefaults()
         end
     end
 
-    -- 总是加载脚本，确保技能显示正常
-    self:LoadScripts()
-    
     if #changed > 0 then
+        self:LoadScripts()
         -- self:RefreshOptions()
 
         local msg
@@ -1073,9 +1070,6 @@ function Hekili:RestoreDefaults()
             Hekili:Print( msg )
         end ) end
     end
-    
-    -- 清理无效的优先级选择器引用（在内置包加载完成之后）
-    self:CleanupInvalidAutoPacks()
 end
 
 
@@ -1092,44 +1086,6 @@ function Hekili:RestoreDefault( name )
             data.payload.version = default.version
             data.payload.date = default.version
             data.payload.builtIn = true
-        end
-    end
-end
-
-
--- 清理无效的优先级选择器引用
--- 当优先级包被删除后，autoPacks 中的引用会变成无效的
--- 此函数在登录或重载UI时清理这些无效引用
-function Hekili:CleanupInvalidAutoPacks()
-    local p = self.DB.profile
-    if not p or not p.specs then return end
-
-    local packs = p.packs or {}
-    local cleanedEntries = {}
-
-    -- 遍历所有专精的 autoPacks 配置
-    for specID, specData in pairs( p.specs ) do
-        if specData and specData.autoPacks then
-            for selectorKey, packName in pairs( specData.autoPacks ) do
-                -- 检查引用是否有效
-                -- "none" 或 "无" 是有效的空值，保持不变
-                -- 如果引用的包不存在，则设置为 "none"
-                if packName and packName ~= "none" and packName ~= "无" then
-                    if not rawget( packs, packName ) then
-                        -- 记录清理的条目用于调试
-                        insert( cleanedEntries, string.format( "专精 %s: %s -> %s (包不存在)", tostring(specID), selectorKey, packName ) )
-                        specData.autoPacks[ selectorKey ] = "none"
-                    end
-                end
-            end
-        end
-    end
-
-    -- 输出调试日志
-    if #cleanedEntries > 0 then
-        Hekili:Print( string.format( "|cFFFFD100Hekili|r: 已清理 %d 个无效的优先级选择器引用。", #cleanedEntries ) )
-        for _, entry in ipairs( cleanedEntries ) do
-            Hekili:Print( "  - " .. entry )
         end
     end
 end

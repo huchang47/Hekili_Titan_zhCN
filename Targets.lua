@@ -337,66 +337,9 @@ do
             local checkPets = showNPs and spec.petbased and Hekili:PetBasedTargetDetectionIsReady()
             local checkPlates = showNPs and spec.nameplates
 
-            -- 安全区域检查函数（移到循环外部以提高性能）
-            local function IsInSafeArea()
-                if IsInInstance() then
-                    return false
-                end
-                
-                if IsResting() then
-                    return true
-                end
-                
-                local pvpType = GetZonePVPInfo()
-                if pvpType == "sanctuary" then -- 庇护所
-                    return true
-                end
-                
-                local mapID = C_Map.GetBestMapForUnit("player")
-                if mapID then
-                    local cityMaps = {
-                        [84] = true,   
-                        [85] = true,   
-                        [87] = true,   
-                        [88] = true,   
-                        [89] = true,   
-                        [90] = true,   
-                        [103] = true,  
-                        [110] = true,  
-                        [111] = true, 
-                        [125] = true,  
-                        [627] = true,  
-                        [1670] = true, 
-                    }
-                    
-                    if cityMaps[mapID] then
-                        return true
-                    end
-                end
-                
-                return false
-            end
-            
-            -- 预先计算安全区域状态和玩家战斗状态
-            local inSafeArea = IsInSafeArea()
-            local playerInCombat = UnitAffectingCombat("player")
-            local shouldCheckCombat = not inSafeArea and playerInCombat
-            
             if checkPets or checkPlates then
                 for unit, guid in pairs( npGUIDs ) do
-      
-                    local combatCheck = true
-                    
-                    -- 只有在非安全区域且玩家在战斗中时，才检查目标是否在战斗中
-                    -- 额外检查：如果目标正在攻击玩家（通过威胁值判断），也算作战斗中
-                    if shouldCheckCombat then
-                        local unitInCombat = UnitAffectingCombat(unit)
-                        local threatStatus = UnitThreatSituation("player", unit)
-                        -- 如果单位在战斗中，或者玩家对该单位有仇恨，则通过检查
-                        combatCheck = unitInCombat or (threatStatus and threatStatus > 0)
-                    end
-                    
-                    if UnitExists( unit ) and not UnitIsDead( unit ) and UnitCanAttack( "player", unit ) and UnitInPhase( unit ) and UnitHealth( unit ) > 0 and ( UnitIsPVP( "player" ) or not UnitIsPlayer( unit ) ) and combatCheck then
+                    if UnitExists( unit ) and not UnitIsDead( unit ) and UnitCanAttack( "player", unit ) and UnitInPhase( unit ) and UnitHealth( unit ) > 0 and ( UnitIsPVP( "player" ) or not UnitIsPlayer( unit ) ) then
                         local npcid = guid:match( "(%d+)-%x-$" )
                         npcid = tonumber(npcid)
 
@@ -444,17 +387,7 @@ do
                     local guid = UnitGUID( unit )
 
                     if guid and counted[ guid ] == nil then
-            
-                        local combatCheck = true
-                        
-                        -- 使用之前计算的状态，避免重复计算
-                        if shouldCheckCombat then
-                            local unitInCombat = UnitAffectingCombat(unit)
-                            local threatStatus = UnitThreatSituation("player", unit)
-                            combatCheck = unitInCombat or (threatStatus and threatStatus > 0)
-                        end
-                        
-                        if UnitExists( unit ) and not UnitIsDead( unit ) and UnitCanAttack( "player", unit ) and UnitInPhase( unit ) and UnitHealth( unit ) > 0 and ( UnitIsPVP( "player" ) or not UnitIsPlayer( unit ) ) and combatCheck then
+                        if UnitExists( unit ) and not UnitIsDead( unit ) and UnitCanAttack( "player", unit ) and UnitInPhase( unit ) and UnitHealth( unit ) > 0 and ( UnitIsPVP( "player" ) or not UnitIsPlayer( unit ) ) then
                             local npcid = guid:match( "(%d+)-%x-$" )
                             npcid = tonumber(npcid)
 
@@ -742,6 +675,7 @@ ns.GetDebuffApplicationTime = function( spell, target )
     if not debuffCount[ spell ] or debuffCount[ spell ] == 0 then return 0 end
     return debuffs[ spell ] and debuffs[ spell ][ target ] and ( debuffs[ spell ][ target ].applied or debuffs[ spell ][ target ].last_seen ) or 0
 end
+
 
 function ns.getModifier( id, target )
     if class.auras[ spell ] then spell = class.auras[ spell ].key end
@@ -1352,7 +1286,7 @@ do
 
         for k, v in pairs( db ) do
             local unit = ( v.unit or "unknown" )
-            local excluded = CheckEnemyExclusion( k )
+            local excluded = CheckEnemyExclusions( k )
 
             if v.n > 3 then
                 output = output .. format( "\n    %-11s: %4ds [%d] #%6s%s %s", unit, v.deathTime, v.n, v.npcid, excluded and "*" or "", UnitName( v.unit ) or "Unknown" )

@@ -1,6 +1,5 @@
 -- Events.lua
 -- June 2014
--- 泰坦重铸版优化 - 事件处理优化
 
 local addon, ns = ...
 local Hekili = _G[ addon ]
@@ -34,49 +33,6 @@ local activeDisplays = {}
 
 local IsInJailersTower = _G.IsInJailersTower or function() return false end
 
--- ============================================================================
--- 泰坦重铸版事件优化配置
--- ============================================================================
-local EventOptimization = {
-    -- 事件节流配置（秒）
-    throttle = {
-        UNIT_AURA = 0.05,           -- 光环更新节流
-        UNIT_POWER_UPDATE = 0.03,   -- 能量更新节流
-        UNIT_HEALTH = 0.1,          -- 生命值更新节流
-        COMBAT_LOG_EVENT_UNFILTERED = 0.01, -- 战斗日志节流
-    },
-    -- 上次处理时间
-    lastProcess = {},
-    -- 事件批处理队列
-    batchQueue = {},
-    -- 批处理间隔
-    batchInterval = 0.05,
-    -- 上次批处理时间
-    lastBatch = 0,
-    -- 启用事件优化
-    enabled = true,
-}
-ns.EventOptimization = EventOptimization
-
--- 检查事件是否应该被节流
-local function ShouldThrottleEvent( event )
-    if not EventOptimization.enabled then return false end
-    
-    local throttleTime = EventOptimization.throttle[ event ]
-    if not throttleTime then return false end
-    
-    local now = GetTime()
-    local lastTime = EventOptimization.lastProcess[ event ] or 0
-    
-    if now - lastTime < throttleTime then
-        return true
-    end
-    
-    EventOptimization.lastProcess[ event ] = now
-    return false
-end
--- ============================================================================
-
 
 function Hekili:GetActiveDisplays()
     return activeDisplays
@@ -101,9 +57,6 @@ local function SetZoneInfo()
 end
 
 local function GenericOnEvent( self, event, ... )
-    -- 泰坦重铸版优化：事件节流
-    if ShouldThrottleEvent( event ) then return end
-    
     local eventHandlers = handlers[ event ]
 
     if not eventHandlers then return end
@@ -123,9 +76,6 @@ local function GenericOnEvent( self, event, ... )
 end
 
 local function UnitSpecificOnEvent( self, event, unit, ... )
-    -- 泰坦重铸版优化：事件节流
-    if ShouldThrottleEvent( event ) then return end
-    
     local unitFrame = unitHandlers[ unit ]
 
     if unitFrame then
@@ -148,10 +98,6 @@ local function UnitSpecificOnEvent( self, event, unit, ... )
     end
 end
 
--- 泰坦重铸版优化：帧更新节流
-local frameUpdateAccumulator = 0
-local FRAME_UPDATE_INTERVAL = 0.03  -- 约33fps，足够流畅
-
 function ns.StartEventHandler()
     events:SetScript( "OnEvent", GenericOnEvent )
 
@@ -160,13 +106,6 @@ function ns.StartEventHandler()
     end
 
     events:SetScript( "OnUpdate", function( self, elapsed )
-        -- 泰坦重铸版优化：帧更新节流
-        frameUpdateAccumulator = frameUpdateAccumulator + elapsed
-        if frameUpdateAccumulator < FRAME_UPDATE_INTERVAL then
-            return
-        end
-        frameUpdateAccumulator = 0
-        
         Hekili.freshFrame = true
 
         if handlers.FRAME_UPDATE then

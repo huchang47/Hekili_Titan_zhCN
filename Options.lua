@@ -4447,45 +4447,18 @@ do
     local testFrame = CreateFrame( "Frame" )
     testFrame.Texture = testFrame:CreateTexture()
 
-    -- 搜索过滤辅助函数
-    local function matchesSearchFilter( name, key, filter )
-        if not filter or filter == "" then return true end
-        
-        local lowerFilter = filter:lower()
-        local lowerName = name and name:lower() or ""
-        local lowerKey = key and key:lower() or ""
-        
-        -- 模糊搜索：检查名称是否包含搜索词
-        if lowerName:find( lowerFilter, 1, true ) then return true end
-        -- 精确搜索：检查key是否包含搜索词
-        if lowerKey:find( lowerFilter, 1, true ) then return true end
-        
-        return false
-    end
-
     function Hekili:EmbedAbilityOptions( db )
         db = db or self.Options
         if not db then return end
 
         local abilities = {}
         local toggles = {}
-        local searchFilter = Hekili.abilitySearchFilter or ""
 
         for k, v in pairs( class.abilityList ) do
             local a = class.abilities[ k ]
             if a and ( a.id > 0 or a.id < -100 ) and a.id ~= state.cooldown.global_cooldown.id and not ( a.isItem or a.item ) then
-                -- 获取显示名称用于搜索
-                local displayName = v and v:match("|t (.+)$") or a.name or k
-                -- 应用搜索过滤
-                if matchesSearchFilter( displayName, k, searchFilter ) then
-                    abilities[ v ] = k
-                end
+                abilities[ v ] = k
             end
-        end
-
-        -- 清空现有的技能选项（搜索时需要重建）
-        if db.args.abilities and db.args.abilities.plugins then
-            db.args.abilities.plugins.actions = {}
         end
 
         for k, v in orderedPairs( abilities ) do
@@ -4815,24 +4788,12 @@ do
 
         local abilities = {}
         local toggles = {}
-        local searchFilter = Hekili.itemSearchFilter or ""
 
         for k, v in pairs( class.abilities ) do
             if k == "potion" or ( v.item or v.isItem ) and not abilities[ v.itemKey or v.key ] then
                 local name = class.itemList[ v.item ] or v.name
-                if name then
-                    -- 应用搜索过滤
-                    local itemKey = v.itemKey or v.key
-                    if matchesSearchFilter( name, itemKey, searchFilter ) then
-                        abilities[ name ] = itemKey
-                    end
-                end
+                if name then abilities[ name ] = v.itemKey or v.key end
             end
-        end
-
-        -- 清空现有的装备选项（搜索时需要重建）
-        if db.args.items and db.args.items.plugins then
-            db.args.items.plugins.equipment = {}
         end
 
         for k, v in orderedPairs( abilities ) do
@@ -5794,11 +5755,6 @@ do
 
                 local specCfg = class.specs[ id ] and class.specs[ id ].settings
                 local specProf = self.DB.profile.specs[ id ]
-                
-                -- 确保 settings 表存在
-                if specProf and not specProf.settings then
-                    specProf.settings = {}
-                end
 
                 if #specCfg > 0 then
                     options.args.core.plugins.settings.prefSpacer = {
@@ -9555,43 +9511,6 @@ do
                         get = GetCurrentSpec,
                         values = GetCurrentSpecList,
                     },
-                    searchHeader = {
-                        type = "header",
-                        name = "技能搜索",
-                        order = 0.2,
-                    },
-                    searchBox = {
-                        type = "input",
-                        name = "搜索技能",
-                        desc = "输入技能名称进行搜索（支持模糊搜索和精确搜索）。\n\n" ..
-                            "提示：输入中文名称进行模糊搜索，输入英文key进行精确搜索。\n" ..
-                            "留空显示所有技能。",
-                        order = 0.3,
-                        width = "full",
-                        get = function()
-                            return Hekili.abilitySearchFilter or ""
-                        end,
-                        set = function( info, val )
-                            Hekili.abilitySearchFilter = val:trim()
-                            Hekili:EmbedAbilityOptions()
-                        end,
-                    },
-                    searchCount = {
-                        type = "description",
-                        name = function()
-                            local filter = Hekili.abilitySearchFilter or ""
-                            if filter == "" then
-                                return ""
-                            end
-                            local count = 0
-                            for _ in pairs( Hekili.Options.args.abilities.plugins.actions or {} ) do
-                                count = count + 1
-                            end
-                            return "|cFF00FF00找到 " .. count .. " 个技能|r"
-                        end,
-                        order = 0.4,
-                        width = "full",
-                    },
                 },
                 plugins = {
                     actions = {}
@@ -9613,43 +9532,6 @@ do
                         set = SetCurrentSpec,
                         get = GetCurrentSpec,
                         values = GetCurrentSpecList,
-                    },
-                    searchHeader = {
-                        type = "header",
-                        name = "装备搜索",
-                        order = 0.2,
-                    },
-                    searchBox = {
-                        type = "input",
-                        name = "搜索装备/饰品",
-                        desc = "输入装备或饰品名称进行搜索（支持模糊搜索和精确搜索）。\n\n" ..
-                            "提示：输入中文名称进行模糊搜索，输入英文key进行精确搜索。\n" ..
-                            "留空显示所有装备。",
-                        order = 0.3,
-                        width = "full",
-                        get = function()
-                            return Hekili.itemSearchFilter or ""
-                        end,
-                        set = function( info, val )
-                            Hekili.itemSearchFilter = val:trim()
-                            Hekili:EmbedItemOptions()
-                        end,
-                    },
-                    searchCount = {
-                        type = "description",
-                        name = function()
-                            local filter = Hekili.itemSearchFilter or ""
-                            if filter == "" then
-                                return ""
-                            end
-                            local count = 0
-                            for _ in pairs( Hekili.Options.args.items.plugins.equipment or {} ) do
-                                count = count + 1
-                            end
-                            return "|cFF00FF00找到 " .. count .. " 个装备/饰品|r"
-                        end,
-                        order = 0.4,
-                        width = "full",
                     },
                 },
                 plugins = {
@@ -9715,109 +9597,10 @@ do
                         width = "full",
                     },
 
-                    titanHeader = {
-                        type = "header",
-                        name = "泰坦重铸版优化",
-                        order = 2.1,
-                        width = "full"
-                    },
-                    
-                    titanDesc = {
-                        type = "description",
-                        name = "以下选项针对泰坦重铸服务器的高急速环境进行了优化。调整这些参数可以改善插件在高急速场景下的响应速度和准确性。",
-                        fontSize = "medium",
-                        order = 2.2,
-                        width = "full",
-                    },
-                    
-                    titanForecastDuration = {
-                        type = "range",
-                        name = "资源预测时长",
-                        desc = "资源预测的基础时长（秒）。高急速场景下会自动延长。\n\n默认值: 12",
-                        order = 2.3,
-                        min = 8,
-                        max = 25,
-                        step = 1,
-                        get = function() return ns.TitanConfig and ns.TitanConfig.FORECAST_BASE_DURATION or 12 end,
-                        set = function( info, val ) 
-                            if ns.TitanConfig then ns.TitanConfig.FORECAST_BASE_DURATION = val end
-                        end,
-                        width = 1.5,
-                    },
-                    
-                    titanMaxEventCount = {
-                        type = "range",
-                        name = "最大事件数量",
-                        desc = "每次时间推进处理的最大事件数量。高急速下需要更多。\n\n默认值: 15",
-                        order = 2.4,
-                        min = 10,
-                        max = 25,
-                        step = 1,
-                        get = function() return ns.TitanConfig and ns.TitanConfig.MAX_EVENT_COUNT or 15 end,
-                        set = function( info, val ) 
-                            if ns.TitanConfig then ns.TitanConfig.MAX_EVENT_COUNT = val end
-                        end,
-                        width = 1.5,
-                    },
-                    
-                    titanGcdMin = {
-                        type = "range",
-                        name = "GCD下限",
-                        desc = "全局冷却时间的最小值（秒）。泰坦服急速高，GCD经常压到很低。\n\n默认值: 0.75",
-                        order = 2.5,
-                        min = 0.5,
-                        max = 1.0,
-                        step = 0.05,
-                        get = function() return ns.TitanConfig and ns.TitanConfig.GCD_MIN or 0.75 end,
-                        set = function( info, val ) 
-                            if ns.TitanConfig then ns.TitanConfig.GCD_MIN = val end
-                        end,
-                        width = 1.5,
-                    },
-                    
-                    titanPrecastThreshold = {
-                        type = "range",
-                        name = "预读施法阈值",
-                        desc = "当施法剩余时间低于此值时，提前开始计算下一个技能（秒）。\n\n默认值: 0.3",
-                        order = 2.6,
-                        min = 0,
-                        max = 0.5,
-                        step = 0.05,
-                        get = function() return ns.TitanConfig and ns.TitanConfig.PRECAST_THRESHOLD or 0.3 end,
-                        set = function( info, val ) 
-                            if ns.TitanConfig then ns.TitanConfig.PRECAST_THRESHOLD = val end
-                        end,
-                        width = 1.5,
-                    },
-                    
-                    titanIncrementalAura = {
-                        type = "toggle",
-                        name = "增量光环更新",
-                        desc = "启用后，只在光环实际变化时才重新扫描，减少CPU占用。\n\n默认: 启用",
-                        order = 2.7,
-                        get = function() return ns.TitanConfig and ns.TitanConfig.ENABLE_INCREMENTAL_AURA or true end,
-                        set = function( info, val ) 
-                            if ns.TitanConfig then ns.TitanConfig.ENABLE_INCREMENTAL_AURA = val end
-                        end,
-                        width = 1.5,
-                    },
-                    
-                    titanObjectPool = {
-                        type = "toggle",
-                        name = "对象池优化",
-                        desc = "启用后，使用对象池减少内存分配和GC压力。\n\n默认: 启用",
-                        order = 2.8,
-                        get = function() return ns.TitanConfig and ns.TitanConfig.ENABLE_OBJECT_POOL or true end,
-                        set = function( info, val ) 
-                            if ns.TitanConfig then ns.TitanConfig.ENABLE_OBJECT_POOL = val end
-                        end,
-                        width = 1.5,
-                    },
-
                     prefHeader = {
                         type = "header",
                         name = "快照/疑难解答",
-                        order = 2.9,
+                        order = 2.5,
                         width = "full"
                     },
 
