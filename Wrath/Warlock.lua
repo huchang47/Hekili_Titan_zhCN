@@ -591,6 +591,14 @@ spec:RegisterAuras( {
         duration = 30,
         max_stack = 1,
     },
+    -- 灵魂链接 - 恶魔学识天赋技能buff
+    -- 激活后，施法者受到的所有伤害的20%由宠物承担
+    -- 新增灵魂链接光环注册 BY YaBi 20260117
+    soul_link = {
+        id = 19028,
+        duration = 3600,
+        max_stack = 1,
+    },
     -- 狮心 - 人类种族技能buff
     lions_heart = {
         id = 20599,
@@ -755,7 +763,6 @@ spec:RegisterHook( "reset_precast", function()
 
     if IsCurrentSpell( class.abilities.shadow_cleave.id ) then
         start_shadow_cleave()
-        Hekili:Debug( "Starting Shadow cleave, next swing in %.2f...", buff.shadow_cleave.remains )
     end
 end )
 
@@ -787,6 +794,19 @@ spec:RegisterStateExpr("pet_health_pct", function()
     end
     -- 计算血量百分比：(当前血量 / 最大血量) * 100
     return (UnitHealth("pet") / UnitHealthMax("pet")) * 100
+end)
+
+-- 训练假人TTD系统 BY YaBi 20260117
+local training_dummy_cache = {}
+spec:RegisterStateExpr("is_training_dummy", function()
+    return training_dummy_cache[target.unit] == true
+end)
+
+spec:RegisterStateExpr("ttd", function()
+    if is_training_dummy then
+        return Hekili.Version:match( "^Dev" ) and settings.dummy_ttd or 300
+    end
+    return target.time_to_die
 end)
 
 
@@ -1536,12 +1556,14 @@ spec:RegisterAbilities( {
     -- Gives 12 health to the caster's pet every second for 10 sec as long as the caster channels.
     health_funnel = {
         id = 47856,
-        cast = 0,
+        cast = function() return ( 10 * haste) end,
         cooldown = 0,
         gcd = "spell",
+        channeled = true,
+        breakable = true,
 
         spend = function()
-            return ( ability.health_cost[ ability.id ] or 520 ) * ( 1 + 0.1 * talent.improved_health_funnel.rank )
+            return 520 * ( 1 - 0.1 * talent.improved_health_funnel.rank )
         end,
         spendType = "health",
 
@@ -1560,6 +1582,8 @@ spec:RegisterAbilities( {
         startsCombat = false,
         texture = 136168,
         aura = "health_funnel",
+
+        usable = function() return UnitExists("pet") and not UnitIsDead("pet") and UnitHealth("pet") > 0, "requires a pet" end,
 
         start = function( rank )
             applyBuff( "health_funnel" )
@@ -2046,7 +2070,7 @@ spec:RegisterAbilities( {
             removeStack( "backdraft" )
         end,
 
-        copy = { 6353, 17924, 27211, 30545, 47824 }, --移除重复的47825，by 哑吡 20251230
+        copy = { 6353, 17924, 27211, 30545, 47824 }, --移除重复的47825，BY YaBi 20251230
     },
 
 
@@ -2514,6 +2538,17 @@ spec:RegisterSetting( "haunt_advance", 2, {
     step = 0.1,
 } )
 
+-- 训练假人TTD设置 BY YaBi 20260117
+spec:RegisterSetting( "dummy_ttd", 300, {
+    type = "range",
+    name = "训练假人TTD",
+    desc = "设置训练假人的存活时间（秒）。\n\n默认值: 300秒",
+    width = "full",
+    min = 60,
+    max = 600,
+    step = 10,
+} )
+
 spec:RegisterOptions( {
     enabled = true,
 
@@ -2533,9 +2568,9 @@ spec:RegisterOptions( {
     usePackSelector = true
 } )
 
-spec:RegisterPack( "痛苦(黑科研)", 20251226, [[Hekili:fJv3UXnru4NfUjQvrSA)nTPkjsWD0l2B2kXDE8S2JZok(pnECsxPiRkQkkTfqLIGGkGOviQknqdOiHcrPWddX7gEl4mJ3D9pRTJtBI6nTBMZXFNZCMVZ3zSvAOClLE6yorPBZ6n70OzZo1A2QDZwk94dDjk9CXABGxh(Hn2c(3gIvgA6G1fpONJptdwvPxFFQj)JSv6NdATwU9YGVUenLUWpgq11jrEs80u69XyMPJ2g3iq9dmmmPACQJDG67hOoE3V70h(8rF)(H)0ENC83g(zFZ47VtWnhDWVh(dpF0U)54F5OX3)Vc3zpXYIhiYPr3)HJo4Rb)E6HH)ZDd)7xo(l2)gtrlqDnWVd)8XV4GWx9KeR9F)6XHV(pgF8tp9O9Klez709Vx4JFSCHrpzxHhV63u6zs94EIcGj1Ga)FxzzeltDX2cZhG0COMk9i24(MeDLpuHd1KuEXWuBKeGuEXfayG9n5Zao2CpngLtyumugjyt(GAUA8a1vcuB1jg6(eposyNAVoY1rU40WNlwIhCtcIytSOeVa1vduBeOUqGkhZwNWRLmwqLO5sXXI5BJI(nsuvIQnOiYINy30TvLdlSnAldBwdRDXKpyhIiHAx5ecWU1fqC9iqGGa3PWaNd(RuD8j3MO5ZL7TLQkFPzNQHTKGkzLUmIMJvF8zWl77ByudZSCy10D2c6K3E7a1elYiwaXp60UX1RhNfgetK0LY5QVxGQluQIoQKhorzLK1MaopFllydbOoW3gE2YPINtu30HQVf2CJiylMqDoHLA5wopzDZHUdQjotqCSBTj(ibwwINzru6JHF6YZyitnmrCiTm11kHMAsS51G0K5Sjrh5nadbc13XKNkx8iCoO94vBIdwypaHHsB6ezMM2sM8nbUrCVPm8SsT5M)PKz99iii9T8Y4uXubDhEnFBpUWecpBKukIRgK2io1k6mv8edWall2N1s5ZIGccdVjqWN93MWusBTOsIyre3bPtbBRjeFt0CMtQCMCoovBdO(h17Lt2TYQvm9ItdjcLtoZg4Rii)mpqlbinilyIg11KsyYQJiR0CymFxzX1nP5fMZmJyWiaRacAG6vJZQyxkx8BcPZAisZN5rMOmLxPVz7eOl8f5yGWR7ypS8wdlSnEM4AJ6rvGk3UMKB1j)(2RxCxzY9Gi6j2cdgkocCHbqGcVgXKWWtRwllaKkKgfLqe1qGK2gERTAJfUYCKMvwDgHzXeKLfNqu2E7ZOTzLvJsPC9jg6jWTWKbIj2AqA1bIsohK56CZ2xn7DTGBRAo3DTKZMlDG2e01bEm2wBsjUEwXkdtX4YCMCnZnXzaWLsqzRYnpIBQa3hQzk4dI8XtKYLQJDzZi5Yl4vAP7DUIqXxJiDJFG6Y1Rutt5JnEBgcCoh7KNg9LYOIkUhEJNueF76Shjn6CjxykzEX8fIQKjz6xFtMJKxTqmUEP6s4JBQfV)r0AuBdcZ2bnfVzXDIHYNEKNIAzP(YVZeC6cQU3kN3vsP3kjFtPCVtyJlm99gLOPCPD94I56nl6wZDB0k59GtAm7mqX7fxQo(L(jBrdntnSm70piTUnk9QIVpvEYm5jDxM4q1cwRIdwwn3c6NERJtwn20IWvd(sQzzviZ7cvZ1jLZxAiVBUuSg4CJ6pFsWYhpvDEoZZRTN9cyIpPwrTwYMMTWmBrtSsVr78OWh8JH7FC49(5to6tV2jh(Yrp4oNE3xhUZUN(Sx8V35tcUjaLpFGdtPx4x9LHp6zIpNIJb1u8XtfWP8)]] )
-spec:RegisterPack( "毁灭(黑科研)", 20251226, [[Hekili:1A1xpUnrq8pl8cVruIZLJde0hq8c9H7fJeVTR3SEDYQZ2R161TksvwTC8N76vHkcbhI)iOc1c0Q2duLO9QkWhgIJVpgm7Uj2Xro5cpW9WfNzN93mZV53moOEO3h56tum0(oDDg0ZXzqhN(7a)HCvtsyi3ec9aYi4Hyse8)EAltcfeF9ntfzskyf5omJhQEVy0W2GR)odaFtyu0(VbYDm33Nz9KLsrUFargkOh8M5EVllvjZOkUio371Y9MD2TkV1JN9DNv8tpA6l)6I78vLhFu(vN90FR47FWSt)JYF9fLhFEXrpsBwFbRtZo(Kzp9lb)(XNx83hw8xpS8ZodqV8opP8(po37kaWp7ztp)3NE(jLpXAO8tpS8WF2(4PF7fN8a7JF03awrUH8uvQUEd5bm4Z9n0gXKO6QGOgJPcEiYLftggY8rVdsbuqdVKeEm2aqdVuAacizHQkGRp2Lk5kMKtawJrcvJ7Kqv5EVvUx)b1qpeOnS(CE8iCIWyCr4Bfl9fVgdZIzrCwQbpNA4KzXy7ZyDHBlFST9NQt497V1idKyVTdzIGPHENTLaCgSD4AyCdnNizur0qYLq0dZcc6qKrczhFX1bH4nUrU3sgLSiOtAzTE71TolcyHyJlBM8FLCVeMQJLPQVDAwueK)8OKnZWJcNKmUJUQWkssN5(K79QZtYQt0jFn8lmxXXloyUEzvnPUD0cnvLTJja(bHgkEJT)(MutrKJGI2h6lKykZsEa3rNqd15L(0uD4AH6QIjJ5JfbWKMuMLyTTfHg4BfNEamB0E4wLQxeoo0pc1RYA272iwRQExG1YPmmLYWuFK7UTGXsXksCnDCmDJ0lrZ6Zm9(OjyAMmLnx4cfV5R4rsrwcCNQ8XyW67LkwNxW25aFHQZcIP5Kqle3cYTMfIbfZiPHuBSPC9t9TvzljjeHI6YyW)Ndn72OsgteP4HcyPDZc51)pXK1YIgCPtRcha99USbx41Rl5rg06HWhLUItWG36YY5ZPkEeu4cSpxpQ(25E721qwrKyIDdmmE5yTXJdyYybUIu1v3CCwzN9oTEJLuo2dm546280(0)8HLLhU0GSEHT9cRuuqkUxxBb0WyVUTRj61qEZJPq0BrD3B9Y7247Rur3Bw8BNTHfI(crKjoRFaO1(AvCwtw0VBlbJmsepXSvc0(xNiJbAeeyZo6Uf3(hko7LfF89N(IpzW0N)Wz3(MxC4FwC0PxCVF5FU5hMFvaTm1y49JUfFXNxC37PFLSiGhQ)bKA4q)7p]] )
-spec:RegisterPack( "恶魔(黑科研)", 202512261, [[Hekili:nF1xVTnvu8pl7fuNqefN0SnqL(aIxyp0xmsiEXo3yFsYv9AFTU(6wfPjR2vyQDDcTkkRObtSj02yRQRGMyARSbFyO2U9BXoxBNghVe3c0h4L0K75C)D(3VZ5CRHMXNBOBtKGXcnQ3OLwJgxQMMwZ6TUIHUCGhyO7rSwK0d)IlXb)mE1xC8EB)LZC8FSvYJ3k5(BFrLkdyCITckFEGWcvZqVtaLj)mxJoLXhvYdSmw4dn07tTTHmvaFld9VGiyCRf)OW2Fk4WD5mEVbHT)GW2zwn(h3p6N39Wx)9r36ojBSE4vJF(VgDVhfVZlsEYbjB8QO13vDS6czkfVXMXp)7q9U)lJ(R1I(ZNM8n7JGNCRNL8W9cBpp(1D(HJ28rzFD1F)49U(HVAZKv3DM478K47TYfZe8v3nzThptYn2gLGYrOYeeF3DIEZVL8S9m0zuFPVkbq4a(Nf0g(H0qhCjDyGTXNGsTKuURs9UGPK4zOBjOsqqjg6oexsnplzy75cB3QEy73lSDFGWK9ZoD(w1V21cB3JnWRFTHaulh8uT7e0T7ijcWHqD9ZGd9JfAO8VcoZitRCRLatWfCOGFAS1mfrjr0dK1SXOJ4AbZ9XZokgCajXHl86Z9P(k8Bov8VqUVrDC4mI66MKabPwG3PALsxrzNzRo3IuqMzxQak6b5MOy(CUMZw06uFZoC)0aP15BIYVpXMVCxMQ)br)s)JqVamayBY7AAXfIaV0Zq0UC1jJ(aJvoxCH0AXqjyrqHZvk5vdbOG1gVGkPwlsD7Lg9LDCKXHXV1alMIkQYm(kNuQA6NSzYlZW5HrKQXjDjbm5zOtmLTWOUlw0YPjOtKKNHME7ZySkSM1Ae8DaFPPsogfME8HvTM)pC8WStn(oZyI0C3jefdBPgkWwnCNAzcoE8LbHd4owAyypYq1ZtBJRXLRAytrAtENPK6God30McPnw2C5WXrqnBCYsMnEh(4eAngzkBin(DgyAfi8H04p1OP)0SNGh4H35eutpit3j1munWf5Sm(iu0QFoKkg1MpHKX4tC00MQ96s71xAEcZcXUHgYuv8s1S1uNOKoQU46vSurRrrQqaMvrJ54xInO9Vz3tLlz0ME7WegtRHffPGAPUyH8gHXmZ(HP6bczptWm7HuQhkOuV1zy(0)PTzAtFHtgjJZKGRATcmEsX1I6cI8MaTYnCsbX1hRJ(Q5S6J7DmSJgt4Ec(s4oRS9FO)WKJn7iNKNl2H4J3FWyZLSWZmv01W2VpYLWBnHiF(MVZU2uBL61tV3n122Gf1jTWx6TiL7roXtMuLrzOPTyROdvW6zRP8eGf3Pd5Kfvv4Qeb2xuAqqxa5xQZRE)e2c4HXugVTGRfG0ExteKEbeHTXP9eUkWyjo1EzcBrqu9MKQrbzmgv(8RZHfrN6ML0cZsGWxjPW)0YYeHloifN8eV(TJU5pfT)RJ(6hE4b3O5HV8PX3CLJw7nrRVZrp4x(7vUE4vrBei7Jfg9OVDROB)avTM3LYG8sVXBp]] )
+spec:RegisterPack( "痛苦(黑科研)", 20251225, [[Hekili:fJv3UXnru4NfUjQvrSA)nTPkjsWD0l2B2kXDE8S2JZok(pnECsxPiRkQkkTfqLIGGkGOviQknqdOiHcrPWddX7gEl4mJ3D9pRTJtBI6nTBMZXFNZCMVZ3zSvAOClLE6yorPBZ6n70OzZo1A2QDZwk94dDjk9CXABGxh(Hn2c(3gIvgA6G1fpONJptdwvPxFFQj)JSv6NdATwU9YGVUenLUWpgq11jrEs80u69XyMPJ2g3iq9dmmmPACQJDG67hOoE3V70h(8rF)(H)0ENC83g(zFZ47VtWnhDWVh(dpF0U)54F5OX3)Vc3zpXYIhiYPr3)HJo4Rb)E6HH)ZDd)7xo(l2)gtrlqDnWVd)8XV4GWx9KeR9F)6XHV(pgF8tp9O9Klez709Vx4JFSCHrpzxHhV63u6zs94EIcGj1Ga)FxzzeltDX2cZhG0COMk9i24(MeDLpuHd1KuEXWuBKeGuEXfayG9n5Zao2CpngLtyumugjyt(GAUA8a1vcuB1jg6(eposyNAVoY1rU40WNlwIhCtcIytSOeVa1vduBeOUqGkhZwNWRLmwqLO5sXXI5BJI(nsuvIQnOiYINy30TvLdlSnAldBwdRDXKpyhIiHAx5ecWU1fqC9iqGGa3PWaNd(RuD8j3MO5ZL7TLQkFPzNQHTKGkzLUmIMJvF8zWl77ByudZSCy10D2c6K3E7a1elYiwaXp60UX1RhNfgetK0LY5QVxGQluQIoQKhorzLK1MaopFllydbOoW3gE2YPINtu30HQVf2CJiylMqDoHLA5wopzDZHUdQjotqCSBTj(ibwwINzru6JHF6YZyitnmrCiTm11kHMAsS51G0K5Sjrh5nadbc13XKNkx8iCoO94vBIdwypaHHsB6ezMM2sM8nbUrCVPm8SsT5M)PKz99iii9T8Y4uXubDhEnFBpUWecpBKukIRgK2io1k6mv8edWall2N1s5ZIGccdVjqWN93MWusBTOsIyre3bPtbBRjeFt0CMtQCMCoovBdO(h17Lt2TYQvm9ItdjcLtoZg4Rii)mpqlbinilyIg11KsyYQJiR0CymFxzX1nP5fMZmJyWiaRacAG6vJZQyxkx8BcPZAisZN5rMOmLxPVz7eOl8f5yGWR7ypS8wdlSnEM4AJ6rvGk3UMKB1j)(2RxCxzY9Gi6j2cdgkocCHbqGcVgXKWWtRwllaKkKgfLqe1qGK2gERTAJfUYCKMvwDgHzXeKLfNqu2E7ZOTzLvJsPC9jg6jWTWKbIj2AqA1bIsohK56CZ2xn7DTGBRAo3DTKZMlDG2e01bEm2wBsjUEwXkdtX4YCMCnZnXzaWLsqzRYnpIBQa3hQzk4dI8XtKYLQJDzZi5Yl4vAP7DUIqXxJiDJFG6Y1Rutt5JnEBgcCoh7KNg9LYOIkUhEJNueF76Shjn6CjxykzEX8fIQKjz6xFtMJKxTqmUEP6s4JBQfV)r0AuBdcZ2bnfVzXDIHYNEKNIAzP(YVZeC6cQU3kN3vsP3kjFtPCVtyJlm99gLOPCPD94I56nl6wZDB0k59GtAm7mqX7fxQo(L(jBrdntnSm70piTUnk9QIVpvEYm5jDxM4q1cwRIdwwn3c6NERJtwn20IWvd(sQzzviZ7cvZ1jLZxAiVBUuSg4CJ6pFsWYhpvDEoZZRTN9cyIpPwrTwYMMTWmBrtSsVr78OWh8JH7FC49(5to6tV2jh(Yrp4oNE3xhUZUN(Sx8V35tcUjaLpFGdtPx4x9LHp6zIpNIJb1u8XtfWP8)]] )
+spec:RegisterPack( "毁灭(黑科研)", 20251225, [[Hekili:1A1xpUnrq8pl8cVruIZLJde0hq8c9H7fJeVTR3SEDYQZ2R161TksvwTC8N76vHkcbhI)iOc1c0Q2duLO9QkWhgIJVpgm7Uj2Xro5cpW9WfNzN93mZV53moOEO3h56tum0(oDDg0ZXzqhN(7a)HCvtsyi3ec9aYi4Hyse8)EAltcfeF9ntfzskyf5omJhQEVy0W2GR)odaFtyu0(VbYDm33Nz9KLsrUFargkOh8M5EVllvjZOkUio371Y9MD2TkV1JN9DNv8tpA6l)6I78vLhFu(vN90FR47FWSt)JYF9fLhFEXrpsBwFbRtZo(Kzp9lb)(XNx83hw8xpS8ZodqV8opP8(po37kaWp7ztp)3NE(jLpXAO8tpS8WF2(4PF7fN8a7JF03awrUH8uvQUEd5bm4Z9n0gXKO6QGOgJPcEiYLftggY8rVdsbuqdVKeEm2aqdVuAacizHQkGRp2Lk5kMKtawJrcvJ7Kqv5EVvUx)b1qpeOnS(CE8iCIWyCr4Bfl9fVgdZIzrCwQbpNA4KzXy7ZyDHBlFST9NQt497V1idKyVTdzIGPHENTLaCgSD4AyCdnNizur0qYLq0dZcc6qKrczhFX1bH4nUrU3sgLSiOtAzTE71TolcyHyJlBM8FLCVeMQJLPQVDAwueK)8OKnZWJcNKmUJUQWkssN5(K79QZtYQt0jFn8lmxXXloyUEzvnPUD0cnvLTJja(bHgkEJT)(MutrKJGI2h6lKykZsEa3rNqd15L(0uD4AH6QIjJ5JfbWKMuMLyTTfHg4BfNEamB0E4wLQxeoo0pc1RYA272iwRQExG1YPmmLYWuFK7UTGXsXksCnDCmDJ0lrZ6Zm9(OjyAMmLnx4cfV5R4rsrwcCNQ8XyW67LkwNxW25aFHQZcIP5Kqle3cYTMfIbfZiPHuBSPC9t9TvzljjeHI6YyW)Ndn72OsgteP4HcyPDZc51)pXK1YIgCPtRcha99USbx41Rl5rg06HWhLUItWG36YY5ZPkEeu4cSpxpQ(25E721qwrKyIDdmmE5yTXJdyYybUIu1v3CCwzN9oTEJLuo2dm546280(0)8HLLhU0GSEHT9cRuuqkUxxBb0WyVUTRj61qEZJPq0BrD3B9Y7247Rur3Bw8BNTHfI(crKjoRFaO1(AvCwtw0VBlbJmsepXSvc0(xNiJbAeeyZo6Uf3(hko7LfF89N(IpzW0N)Wz3(MxC4FwC0PxCVF5FU5hMFvaTm1y49JUfFXNxC37PFLSiGhQ)bKA4q)7p]] )
+spec:RegisterPack( "恶魔(黑科研)", 20251226, [[Hekili:nF1xVTnvu8pl7fuNqefN0SnqL(aIxyp0xmsiEXo3yFsYv9AFTU(6wfPjR2vyQDDcTkkRObtSj02yRQRGMyARSbFyO2U9BXoxBNghVe3c0h4L0K75C)D(3VZ5CRHMXNBOBtKGXcnQ3OLwJgxQMMwZ6TUIHUCGhyO7rSwK0d)IlXb)mE1xC8EB)LZC8FSvYJ3k5(BFrLkdyCITckFEGWcvZqVtaLj)mxJoLXhvYdSmw4dn07tTTHmvaFld9VGiyCRf)OW2Fk4WD5mEVbHT)GW2zwn(h3p6N39Wx)9r36ojBSE4vJF(VgDVhfVZlsEYbjB8QO13vDS6czkfVXMXp)7q9U)lJ(R1I(ZNM8n7JGNCRNL8W9cBpp(1D(HJ28rzFD1F)49U(HVAZKv3DM478K47TYfZe8v3nzThptYn2gLGYrOYeeF3DIEZVL8S9m0zuFPVkbq4a(Nf0g(H0qhCjDyGTXNGsTKuURs9UGPK4zOBjOsqqjg6oexsnplzy75cB3QEy73lSDFGWK9ZoD(w1V21cB3JnWRFTHaulh8uT7e0T7ijcWHqD9ZGd9JfAO8VcoZitRCRLatWfCOGFAS1mfrjr0dK1SXOJ4AbZ9XZokgCajXHl86Z9P(k8Bov8VqUVrDC4mI66MKabPwG3PALsxrzNzRo3IuqMzxQak6b5MOy(CUMZw06uFZoC)0aP15BIYVpXMVCxMQ)br)s)JqVamayBY7AAXfIaV0Zq0UC1jJ(aJvoxCH0AXqjyrqHZvk5vdbOG1gVGkPwlsD7Lg9LDCKXHXV1alMIkQYm(kNuQA6NSzYlZW5HrKQXjDjbm5zOtmLTWOUlw0YPjOtKKNHME7ZySkSM1Ae8DaFPPsogfME8HvTM)pC8WStn(oZyI0C3jefdBPgkWwnCNAzcoE8LbHd4owAyypYq1ZtBJRXLRAytrAtENPK6God30McPnw2C5WXrqnBCYsMnEh(4eAngzkBin(DgyAfi8H04p1OP)0SNGh4H35eutpit3j1munWf5Sm(iu0QFoKkg1MpHKX4tC00MQ96s71xAEcZcXUHgYuv8s1S1uNOKoQU46vSurRrrQqaMvrJ54xInO9Vz3tLlz0ME7WegtRHffPGAPUyH8gHXmZ(HP6bczptWm7HuQhkOuV1zy(0)PTzAtFHtgjJZKGRATcmEsX1I6cI8MaTYnCsbX1hRJ(Q5S6J7DmSJgt4Ec(s4oRS9FO)WKJn7iNKNl2H4J3FWyZLSWZmv01W2VpYLWBnHiF(MVZU2uBL61tV3n122Gf1jTWx6TiL7roXtMuLrzOPTyROdvW6zRP8eGf3Pd5Kfvv4Qeb2xuAqqxa5xQZRE)e2c4HXugVTGRfG0ExteKEbeHTXP9eUkWyjo1EzcBrqu9MKQrbzmgv(8RZHfrN6ML0cZsGWxjPW)0YYeHloifN8eV(TJU5pfT)RJ(6hE4b3O5HV8PX3CLJw7nrRVZrp4x(7vUE4vrBei7Jfg9OVDROB)avTM3LYG8sVXBp]] )
 
 spec:RegisterPackSelector( "affliction", "痛苦(黑科研)", "|T136145:0|t 痛苦",
     "如果你在|T136145:0|t痛苦天赋中投入的点数多于其他天赋，将会为你自动选择该优先级。",

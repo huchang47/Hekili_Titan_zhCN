@@ -2035,8 +2035,15 @@ function Hekili.Update()
                     if i == 1 and class.abilities.auto_attack and state:IsKnown( "auto_attack" ) then
                         local fallbackAction = "auto_attack"
                         local fallbackAbility = class.abilities[ fallbackAction ]
-
+                        -- 圆圆bro添加禁用攻击支持
+                        local isDisabled = false
                         if fallbackAbility then
+                            local spec = Hekili.DB.profile.specs[ state.spec.id ]
+                            if spec and spec.abilities[ fallbackAction ] then
+                                isDisabled = spec.abilities[ fallbackAction ].disabled
+                            end
+                        end
+                        if fallbackAbility and not isDisabled then
                             action = fallbackAction
                             wait = 0
 

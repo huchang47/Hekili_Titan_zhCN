@@ -67,9 +67,9 @@ function ns.updateTalents()
 
         if type( selector.condition ) == "function" and selector.condition( tab1, tab2, tab3 ) or
             type( selector.condition ) == "number" and
-                ( selector.condition == 1 and tab1 > max( tab2, tab3 ) or
-                  selector.condition == 2 and tab2 > max( tab1, tab3 ) or
-                  selector.condition == 3 and tab3 > max( tab1, tab2 ) ) then
+                ( selector.condition == 1 and tab1 > math.max( tab2, tab3 ) or
+                  selector.condition == 2 and tab2 > math.max( tab1, tab3 ) or
+                  selector.condition == 3 and tab3 > math.max( tab1, tab2 ) ) then
 
             if toPackage ~= "none" and fromPackage ~= toPackage then
                 Hekili.DB.profile.specs[ spec ].package = toPackage
@@ -1095,7 +1095,7 @@ all:RegisterAbilities( {
 
     -- 治疗药水别名 - 与 best_healing_potion 相同
     health_potion = {
-        name = "|cff00ccff[治疗药水]|r",
+        name = "|cff00ccff[法力药水]|r",
         cast = 0,
         cooldown = function () return time > 0 and 3600 or 60 end,
         gcd = "off",
@@ -1116,12 +1116,12 @@ all:RegisterAbilities( {
         usable = function ()
             local hasPotion = GetItemCount( 33447 ) > 0 or GetItemCount( 43569 ) > 0 or 
                              GetItemCount( 22829 ) > 0 or GetItemCount( 13446 ) > 0
-            if not hasPotion then return false, "需要背包中有治疗药水" end
+            if not hasPotion then return false, "需要背包中有法力药水" end
             local itemID = GetItemCount( 33447 ) > 0 and 33447 or 
                           GetItemCount( 43569 ) > 0 and 43569 or 
                           GetItemCount( 22829 ) > 0 and 22829 or 13446
-            if not IsUsableItem( itemID ) then return false, "治疗药水CD中" end
-            if health.current >= health.max then return false, "必须已受到伤害" end
+            if not IsUsableItem( itemID ) then return false, "法力药水CD中" end
+            if health.current >= health.max then return false, "你还没受到伤害" end
             return true
         end,
 
@@ -1201,7 +1201,7 @@ all:RegisterAbilities( {
         bagItem = true,
 
         startsCombat = false,
-        texture = 135230,
+        texture = 135230,  -- 使用与普通治疗石相同的图标
 
         toggle = "defensives",
 

@@ -658,13 +658,21 @@ spec:RegisterAbilities( {
         cast = 0,
         cooldown = 0,
         gcd = "spell",
-        aura = "devouring_plague",
 
         spend = 0.25,
         spendType = "mana",
 
         startsCombat = true,
         texture = 252997,
+
+        -- 噬灵瘟疫在暗影形态下才能享受急速和暴击加成
+        -- 添加暗影形态建议检查 BY YaBi 20260118
+        usable = function()
+            if not buff.shadowform.up then
+                return true, "建议在暗影形态下使用以获得急速和暴击加成"
+            end
+            return true
+        end,
 
         handler = function ()
             if talent.shadow_weaving.rank == 3 then
@@ -1148,6 +1156,15 @@ spec:RegisterAbilities( {
         aura = "mind_flay",
         tick_time = function () return class.auras.mind_flay.tick_time end,
 
+        -- 精神鞭笞是暗影天赋核心技能，建议在暗影形态下使用
+        -- 添加暗影形态建议检查 BY YaBi 20260118
+        usable = function()
+            if not buff.shadowform.up then
+                return true, "建议在暗影形态下使用以获得急速加成"
+            end
+            return true
+        end,
+
         start = function ()
             applyDebuff( "target", "mind_flay" )
             if talent.pain_and_suffering.rank == 3 then
@@ -1190,6 +1207,15 @@ spec:RegisterAbilities( {
 
         aura = "mind_sear",
         tick_time = function () return class.auras.mind_sear.tick_time end,
+
+        -- 精神灼烧是暗影AOE技能，建议在暗影形态下使用
+        -- 添加暗影形态建议检查 BY YaBi 20260118
+        usable = function()
+            if not buff.shadowform.up then
+                return true, "建议在暗影形态下使用以获得伤害加成"
+            end
+            return true
+        end,
 
         start = function ()
             applyDebuff( "target", "mind_sear" )
@@ -1652,7 +1678,6 @@ spec:RegisterAbilities( {
         cast = 0,
         cooldown = 0,
         gcd = "spell",
-        aura = "shadow_word_pain",
 
         spend = 0.22,
         spendType = "mana",
@@ -1757,7 +1782,6 @@ spec:RegisterAbilities( {
         cast = function() return 1.5 * haste end,
         cooldown = 0,
         gcd = "spell",
-        aura = "vampiric_touch",
 
         spend = 0.16,
         spendType = "mana",
@@ -1765,6 +1789,15 @@ spec:RegisterAbilities( {
         talent = "vampiric_touch",
         startsCombat = true,
         texture = 135978,
+
+        -- 吸血鬼之触在暗影形态下才能享受急速和暴击加成
+        -- 添加暗影形态建议检查 BY YaBi 20260118
+        usable = function()
+            if not buff.shadowform.up then
+                return true, "建议在暗影形态下使用以获得急速和暴击加成"
+            end
+            return true
+        end,
 
         handler = function ()
             if talent.shadow_weaving.rank == 3 then
@@ -1865,7 +1898,7 @@ spec:RegisterOptions( {
     gcd = 1243,
 
     nameplates = true,
-    nameplateRange = 8,
+    nameplateRange = 40,
 
     damage = true,
     damageExpiration = 3,

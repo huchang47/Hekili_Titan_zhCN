@@ -321,6 +321,7 @@ spec:RegisterAuras( {
         id = 74396,
         duration = 15,
         max_stack = 2,
+        copy = { 44544, 44545, 44543 },
     },
     -- Absorbs Fire damage.
     fire_ward = {
@@ -342,7 +343,7 @@ spec:RegisterAuras( {
         id = 57761,
         duration = 15,
         max_stack = 1,
-        copy = "brain_freeze",
+        copy = { "brain_freeze", 44549, 44548, 44546 },
     },
     -- Your next Flamestrike spell is instant cast and costs no mana.
     firestarter = {
@@ -679,6 +680,19 @@ spec:RegisterGlyphs( {
 } )
 
 
+-- BY YaBI: 注册水元素宠物，NPC ID 37994
+-- 永恒之水雕文时为永久宠物(3600秒)，否则持续时间由天赋决定
+spec:RegisterPet( "water_elemental", 37994, "summon_water_elemental", function()
+    if glyph and glyph.eternal_water and glyph.eternal_water.enabled then return 3600 end
+    return 45 + ( 5 * ( talent.enduring_winter.rank or 0 ) )
+end )
+
+-- BY YaBI: 水元素状态检测，使用游戏API直接检测宠物
+spec:RegisterStateExpr( "water_elemental_active", function()
+    return UnitExists("pet") and not UnitIsDead("pet")
+end )
+
+
 -- Events that will provoke a 
 local AURA_EVENTS = {
     SPELL_AURA_APPLIED      = 1,
@@ -698,6 +712,12 @@ local FORCED_RESETS = {}
 
 for _, aura in pairs( { "arcane_power", "clearcasting", "fingers_of_frost", "fireball_proc", "firestarter", "hot_streak", "missile_barrage", "presence_of_mind", "deep_freeze", "frost_nova", "frostbite", "shattered_barrier" } ) do
     FORCED_RESETS[ spec.auras[ aura ].id ] = 1
+    -- 同时注册所有 copy ID
+    if spec.auras[ aura ].multi then
+        for id in pairs( spec.auras[ aura ].multi ) do
+            FORCED_RESETS[ id ] = 1
+        end
+    end
 end
 
 local lastFingersConsumed = 0
@@ -734,8 +754,10 @@ spec:RegisterCombatLogEvent( function( _, subtype, _, sourceGUID, sourceName, _,
         end
     end
 
-    if AURA_REMOVED[ subtype ] and spellID == spec.auras.fingers_of_frost.id then
-        lastFingersConsumed = GetTime()
+    if AURA_REMOVED[ subtype ] then
+        if spellID == spec.auras.fingers_of_frost.id or ( spec.auras.fingers_of_frost.multi and spec.auras.fingers_of_frost.multi[ spellID ] ) then
+            lastFingersConsumed = GetTime()
+        end
     end
 
     if sourceGUID == state.GUID and subtype == "SPELL_CAST_SUCCESS" and spec.abilities[ spellID ] and spec.abilities[ spellID ].key == "frostbolt" then
@@ -1407,13 +1429,13 @@ spec:RegisterAbilities( {
         cooldown = function() return 25 * ( 1 - ( min( 0.2, 0.07 * talent.ice_floes.rank ) ) ) end,
         gcd = "spell",
 
-        spend = function() return buff.clearcasting.up and 0 or 0.070 * ( 1 - 0.01 * buff.precision.rank ) * ( buff.arcane_power.up and 1.2 or 1 ) end,
+        spend = function() return buff.clearcasting.up and 0 or 0.070 * ( 1 - 0.01 * talent.precision.rank ) * ( buff.arcane_power.up and 1.2 or 1 ) end, -- BY YaBI: 修复 buff.precision -> talent.precision
         spendType = "mana",
 
         startsCombat = true,
 
         handler = function()
-            if target[ "within" .. ( 10 + target.arctic_reach.rank ) ] then
+            if target[ "within" .. ( 10 + talent.arctic_reach.rank ) ] then -- BY YaBI: 修复 target.arctic_reach -> talent.arctic_reach
                 applyDebuff( "target", "frost_nova" )
             end
         end,
@@ -1441,7 +1463,7 @@ spec:RegisterAbilities( {
     -- Launches a bolt of frost at the enemy, causing ${$m2*$<mult>} to ${$M2*$<mult>} Frost damage and slowing movement speed by $s1% for $d.
     frostbolt = {
         id = 42842,
-        cast = function() return buff.presence_of_mind.up and 0 or 1.5 - ( 0.1 * ( talent.improved_frostbolt.rank + talent.empowered_frostbolt.rank ) ) end,
+        cast = function() return buff.presence_of_mind.up and 0 or ( 1.5 - ( 0.1 * ( talent.improved_frostbolt.rank + talent.empowered_frostbolt.rank ) ) ) * haste end,
         cooldown = 0,
         gcd = "spell",
 
@@ -1563,11 +1585,13 @@ spec:RegisterAbilities( {
         handler = function()
             -- 冰枪消耗清晰思维 buff
             if buff.clearcasting.up then removeBuff( "clearcasting" ) end
+            -- 冰枪在施法时消耗冰指（瞬发技能）
+            if buff.fingers_of_frost.up then removeStack( "fingers_of_frost" ) end
         end,
 
         impact = function()
-            if buff.fingers_of_frost.up then removeBuff( "fingers_of_frost" )
-            elseif debuff.frost_nova.up then removeDebuff( "target", "frost_nova" )
+            -- 移除冻结效果
+            if debuff.frost_nova.up then removeDebuff( "target", "frost_nova" )
             elseif debuff.frostbite.up then removeDebuff( "target", "frostbite" ) end
         end,
         copy = { 30455, 42913, 42914 },
@@ -1915,8 +1939,13 @@ spec:RegisterAbilities( {
 
         startsCombat = false,
 
+        -- BY YaBI: 永恒之水雕文支持，使用API直接检测宠物存活状态
         usable = function()
-            return not pet.water_elemental.active, "water elemental already active"
+            -- 直接使用游戏API检测宠物是否存在且存活
+            if UnitExists("pet") and not UnitIsDead("pet") then
+                return false, "water elemental already active"
+            end
+            return true
         end,
 
         handler = function()
@@ -1948,6 +1977,7 @@ spec:RegisterAbilities( {
     -- 寒冰宝珠 - 向前发射一颗寒冰宝珠，不断射出冰箭撕碎该区域
     -- 需要5点冷锋天赋 (TalentID: 23709)
     -- SpellID: 1284421
+    -- BY YaBI: 添加寒冰宝珠技能
     frozen_orb = {
         id = 1284421,
         cast = 0,
@@ -1959,7 +1989,11 @@ spec:RegisterAbilities( {
 
         talent = "frozen_orb",
         startsCombat = true,
-        texture = 629077,
+        -- 使用函数动态获取图标，如果获取失败则使用默认冰霜图标
+        texture = function()
+            local _, _, icon = GetSpellInfo(1284421)
+            return icon or 629077
+        end,
 
         toggle = "cooldowns",
 
@@ -2078,8 +2112,7 @@ spec:RegisterPack( "火焰(黑科研)", 20250820, [[Hekili:DEvtVnory4FlCH2kKSAs6
 
 spec:RegisterPack( "冰霜 Wowhead", 20230930, [[Hekili:fJ1FpsTnq0plOkT3Du2S)4G7a0DivkQTGApv1qf9VsI3Kj76Eo2bBNBzpDkF27yNnjoztwOuHQqcYAp(nppEM5ztWIG3h4Nq0qWnlNV885V485ElE6Y5p95b(6D5qGFoj(wYA8dojd)7Fsku6YOpi2UbijMP3Xe4himkrHmgnzJwNRE5SzB3U1BBLDEXISzBfA2TZwxqtGzXmIsbQzzi0Zsnyoljxnvk0envWNgleSeXwUAkzfLr1uqnn)oe8vfuM(T8Gvdt7lrAKdXb3G8FdnjbQSeuXb()g6RxwgvTdENllPX7MEhq5QwEo1YqACf5MA45uddrsCuww(oFixdzRazzKHByisksPmK7FxzuxoGd8nJgi29ys57WrXH)DjG4VIGeGeBaq5Lxp03F9mImMWHWvskJrj8y4j00RLeAYKvfPPEhmTNX1hfkkxdmgeRni9OphuDMRzPhXlXc(FxiHWmcNeUgYmEP(7W4ne5AqD1YHxBMGPbEirMjKM1z9DbN(XcOAWJ4xvrwMGhUftdLHadYaUMWS7XCq7zwYDWK1SD5B8a0goHvzShWjRyqYWWMkIlu4Mznn2G1APOiFsfyHjcTNZ8xpFyiY3jfRWehBaFLqPQp6FdKskyTh82OxbgJLyvdJ5oUDaLgWDeJINeXjx3ouyDkxfS)yDcOlazuPuidPMC2oapEy7ljwHiG1jH26e3b3NWKl2I57oJNYW(wHXKC3bZfMVEsHccfPPHRXn3IUbfwsOItYn0YyvZavzNnmOkJToA4mUeYi4)(QlMBlf)tfugr47kJ0sk)wqRWV2GLGrejWpb)xHEdi3sn2z6GrtPqINlNm0GI1ZQwaFda5MMjaCp(lTOmcRfW4l(JDyZ4YitoaAaLVgpHrFKw36jQQUa9fndtiWiNOqXq6TLQ3GKAVDRWYdCzY9)mLkXL8ACWomlbPryQLfM41PjGniHTSUh4Ef5p8q1VRObgXdTDZ8uAuB56fNn50kS8sRDsOXXEuEykJUEJ(HhCnO7CN15WUE(MA5dCkwmHPByoNNdTBpbDgS(m8QymkgQPzWJpY(4aA0SpA4YkS1hVfC0E3fTIrV)EImXy((YDGdzyZ8xTCYJYe3HUTBok3K9AtnhCnAZjS2ZCIs5lMp5qi2xZaFkNjuMcIVoyQ2P19BQMV7YwoVZofW4PTd9NRo0mrtB9owv3K3lpwF1LDGhUteBfg7yZ5ZhmrjW)o8SehT9Meb(BjsoUhub(F4h(JBE7n)mkzxg9(nyYpnlxiXAIutrXjjv9tpPmscFSaddjyfLWu)rk0ImSbwITudtyuyjZVInslJwS8LMwMC0X25pzF(4FDsvnCZVR79HJF6IpDMNPl(BT(3SSLOtS7hSmNQ0g8d8r3Urid8)f4w8Mab(2zS3XRIP4N3yVZx1sd8DB)h4V3HbVoqJXdJDTJ0SKwzad(wPb3bB0gmyCURVCve65RN2ZxXsSvNKsc8Fuz0rKfCy1GYkgSFMlhA6q3Jax4AKRwsp7U01UgTLEg9CJroPRMyEZIQY57TIxm6(VJ6tz0KYObuGSJpUkuz0RkJUyU7P(Ean(EX8Eo3CDzjnVY0VsLRwF1OBz91IrsQC67oeb(FuPZ9W40YO(IBLrp8W(ZKregIUgR5lJoZEiDADv7OIDvaoUGhIKns2V8SLLJj8zjWHIFnxXQts0acHLrxHgulgwg94JUVDktAA2A495hN3hks2dOMqMfTXBC0viZwcS0UfXokvAuTaxR9AH8z)7HSNgPDS((WvV26Nl(24N(I6wFD5O(AVC(bOV0PDrRaVfSJ2ERV4EVgDlgVtxTuTnn7sh3lHCmNLQ2yX9axBKQ63cBeup3b1MRjybOJOOZTdCjV28w(9VYQriDGEzh8U2ED0o4)HGw2AECCBt(HFG8qAZD0l)sa5G57(s7d2mnt3OQpA029D32O(YofbDER(X1(h(14oxOW517nk9JfvAFtUDV)F8sfJx8AFWU1f7lJ79ODREGBXv7unxWy4Ob(qENRru)g)G2)e8pd]] )
 
--- 泰坦重铸服冰法APL - 国服特别版
-spec:RegisterPack( "冰法(黑科研)", 20260116, [[Hekili:fF1wZTnru4Fl8cdmmrXxtdzaEGhyg8mKxeplPvYRTxqsRz1k3Pz6OjxAsCUn5wtkZu3czgAtVaexAljL0m8Jblz7)fCwPeFlokjqh4fBR98TFNJox(21kjv(Af58iowzYujsnwIKjhtkv6ezsMvrMFRYyf5YiJVfve(HnYc(0FH6bVCNpi4L19FWJBV4AT3(Opua6wMuuEbzouxMbaurw3LyY)sBf9Z7HuztKzmaBzSHYKJRixIKppocj2Xqr(RapoHN2xWOoCpTr80a32UwnWZ(hvTXB)E)v3T5sv9Y5F)tcQTwVbd8yZLEJF1NlSRbi(PN261RaCLC8rtmA20EAbv31tlvcXtjHNo8fa3cC73((7eS7Ite6SM)6VmAq9x5p)CnF1pc)6OGz2QXBwbwcGwF9(GE3FlO2bE5adRTtJt2U5Xl0A5zNWlxsjpTwV(WGLwXF6Tc2PE6M7VL)bBfX(iT3PM)CRpshN4LlLuiFbRUyR9FS)6BgCVFx8QoF1Wy84psy7HpZlxAbV3ztyPMhVDe0Mp8NHpHmuZzEoqUxUmrC5VWHT2B6w3zP2ZVM)gvB)O6(BptZQlaG9YLfW04pFqWQZe5v)xmleLb1MgYfqc2V6tBE3NOiBsC4oIklIIHVMmSLbzWjuBfzlcJrzQeRWweSns3eNx5Zv4q1UxCeJBPwbtSDgauAbixhSkTqb1Ig5f03ztLPrF33oY0lTIDs4yRbPnRau3vKnyakgbPi)EEALXCPBcnKmvSj2cBZrMsccRG7sSJRLf1wDaycQh7cPMJyffut4Li2jt0LScI2yvBAfKGGBedbMGBKa4tHTvPmDPZG1lvNAtq14x)yXGAls2QguZ8ck(44Yuw0ke7ID3SUjzQPqSWncKEr7u3TqbPcWoXmhHVcF)LyyGME7iWQMiBqQqqwY4jtNHi2apy8u4bjkK9cegwvNAYdzl1fYw0BKN277PDTJsyzhENjG3nvWlosVsHxEmU8PPLott)ZzRVssM3LvKSXnMRJHPdlKnsDOd8JnS9o8IlWHuzd4eJpXt7g900ZWLH6cXPuOBIFiSpss3dj4kudu4pJDY7Fthw00yFPXWmyFjeUOSxa5AYpNASb11gcd4yvtZHPg3ta3rOtG1HJbXnqPh0gGeCplc6eGqb9M2X3EvcGYl1nTLDGQRWoKhoRapOmEmNI8)IsEyHdcgIHAEKiOuj2gqDZbl5w2t7232t7S8IuNt2GcRfmt4eLbg2rF)xj(hg(I(kDeJrWmPWcyFDCNAPtp316i4iPF0LCgCmA6r1ivSn2IGHe2N9PHzmhoJyW7Z)gitt1Ohufxej66iQr3fvCHKHj3FL2SdpAwQmdBqT0rxIYoi3LV7qnIzGGzfDgX0KigEhifFo7XR1dTYxf(pNDcmTBAIn4d39Dmh)WBO0BrSLQrjXTgIAGt13vg(gxqm)mCxHthCTjFNlwfXSOdR7lC94NUlYOIrn4f(0ML8uy4GA46Ogoy6Pb9m9EhRUM6mBFPcPWcva5sbOZ(ZjGY1nrmBqSc6NdQUH)Y)G)bV1F(h14pwitJJEwWYt3AUt8REVw79K)A6z9Yj6GOfiMH)LhKlVe8Mj7V9M(BSxOhu(7d]] )
+spec:RegisterPack( "冰法(黑科研)", 20260120, [[Hekili:LIvBpTnww4Flvvc1QsdXjKwAfPsZiTR0Kz3UFiR0(n)sCUb8So2zTDOQvilOTabkSqHbksLoBzetPtzhGzNxktzA7pMfBN8VypxF9743yB)qkj3NZl379CEoNZLMI(VsxVjNgI(ULkw6gfPkvSqXsLPOQqxx7(Dq017WX)35Ma(djU2WNgZFS5pT5vm)PJnEXRgSWkd24KRIbDFrzUMyLPk3vHhasxVrxbrTVqIUX5TqXk3QYOa2oiE67ogD9jfA2erqIu5PR)NblEBD2)OISQMo711zbZoyNDalBCsVZ(9TnwElRf7PxZ45V3CNvc6mWxTw83m6DaEDwaXEFF)F5jGUOgBKIJuPSoRzVT0zlve)nk4BV9hbDJXT)GNVP5wlCBBJzD4pmI5X)SXCpY6NFj8xNyo76N9Bpb(ja6XRgc6x)Fm35i9AWcRS5zVFdRtNV)sp8261OkOZ2)xER5IpXyM1n384Yw7VUXrRt0(1hS5ogpA1R7ze9ALkyRpZLxO)(VYy1NA(SFfVvNRNTpE61WR9nVrVwzSEF8tHFY60niqT(M)n8jCczn7bGY1RnkrxgZ)2(7ot)hV4G5wXyTEd(UJn2ywREZdG1RvbWC2hFH5YZsSQXp(qWln3zg4SaoGn699wF9RPRlkOQPIVz5KrW)Dxk3p0ORJK4AiIAs)5WQ8AcYsWpnLmph5p5ve0qkcC01BZjXvOdpCxoUoB5IGO3TKTkDeQTGIIScJqB7inFTc4kheNa)9zMcjiPgb0OyqDvrmYTAXmbFtSd6juhzhplOevcSlCb2sr(bijgzLgraFJ03YkOoIijb1jzW7Ze333Scwx3m4(b7Ya22r3pJHbfWs(A8s6SDqAfUhKqPWGerTrsACIfWkCkKVIv72UTSeteyyvFRevTgNYeyvlOnPG0yHowu1yKKNIdlpvXlSc4LLW3mm8YInTvbvABV2YtjinHV0nefEWd4uiswkrjB0TvRcTeuqn4efz6OiZxOBNiBc8YmnKf1S1v5S0L0eifvSJBlCi1jWJye5KaIoSMgnrnr2m6SdPZErvAcrOQA2BGqXlWxv1CHNGJejdmM8vNKYCNvK55x(Vls(amPtnD2PNwNTjISUTlgYgnrOoaye6bi309lIbu1GYE6S3PkuQiHlOBCbvj2NHWaEzilq(Esfc4HfuqT5awnWGqHQeS3nt0EjFkesbJLgjzdeKJJdsyILU8wXjB2bAaLxsSKPtL8jK3qfKGn5eMMOwCDf9ZA8jR6kbob0AIOyKdHOKpEKTySQAiGGfQwcCDW5tGFKX9kp9KMjbOAt6NJwjYLdED4uW9(XnRjhLqto4)tUAsgjbGZiWZ0Kd7umcs8kiovKx2RxQGxzD)eb8jqC19DsesPASi8Pk(0sr7C(JVHG4NuRZ6ahOO4uueqkfSVadfY5SsIPhUyJnHIe7NvFauz0S1fQZJukEsUWzqsO2civcVxzCrffbETqBgEmJo5lm4odj9hYqgoa3HyCvwtw4KDHXjuVb0UQgjZTJcIxUDdUmQ4PWj00NaHtHNdYmBOiikkG5kICHEU1JlHpuItE0)5wxa4wefr8AXBEVLtNQWMNEcuBg(jXTCrsxkfKdt6R6cLxDXLJsSDLe(hDrmCkTLJlw3(3tNlzcfzNsCoxLnL1k0sMVRkJnnGolCJgOXJalfhtsmm4zfS4eFmfWEJf1zEtQBrx)ECksa3jKEz2BnJL(xgh97gZ9DN9U5h9StEJ5sZ0)rV3O3Z6V7R)VZ8q9A4qm5wcIqm3LVSoBEhgfJnRbsVYFtw7p9LqYvHYfQCvhzY5iQeS5EmvB4XpQkEjhaHhzf)tx0XwXYK3rxXyZZ4RyC5zewmUCnglb6zF8qJ9wbolIyqJ1xM4HMB)bR9E3GND4GVDB8e9yHQgZ)WxrBBS4kglmVXElKaMAKqy1cEewxR6iNJNyyHwvXujdLgnsAQYJZaRPlLLQgkz2O4TsuUeSvIY)mEP4L1J5alu80mXlyaUbSO2uldfpTs1IjOcxEJ0Vhp7Ktn(WBS(NhLXLO9jHFNHb)D)o9g2P7VQX08xqjIPFo820VdWXlxjD32jb9DRc0wz75b7nmKNhBFD2Xrj3wy6ogjZKqPMTJ51pMxassDmo90j3T44LdRtVwZ80A0g5cI358pq3BvPcUUxVzPVX)S)YFa4R6TN5w)q277OncnmUdNQq7tdtA5Qkf21dxL7ovlNUhq4YZD0CSUGAgPlbTr)JEfu4ijlH1reAE7INr56zVcqvp4GTj1lSE3(x1pFw1lr271c8UsJ(8cU(nPIJBDA)ks92Y65hA(Yf6)Thq8jCnQ3)r7AdHSxG5YdySZn(50thDSBxpWPy358GeSN30RjBn7xJ4ovlDXLeOnt7bhUdvAQmPny)nEXGfw16WDTwB(iYh9zesiTIagVMxzLqaDlYyZfEZIrKZ7jRcbRCrx)ZA)tnw61EN3UnFK8gL8AddL4724EX62fK9Dlu5O)RM1y3dmMBoh(UycCZUceH4ipzTfacIKyZDwZJBm6cPFDqWeGPl8c)FwNiSs8FgzSGHERyQIrbh8jJZbC33i22LCE7O4mFEOrIEGMJCSufkZGRy8tY8oCD1MeM6QUXgp1yTDThUH()9d]] )
 
 spec:RegisterPack( "火法(黑科研)", 202601031, [[Hekili:TEvxVnXrx4FlCrRikch)rCsa12l6fvQU9LBmsC3UE8SJTNMD3XD2XoeUyvcrKpmLgcHqrIu1s5JaV0kIcGi0ee)yA2DT)x0ZSRD8UB8UjivfPyV75CEoZCMNZZCSsoLROuwdjikxoF28tLnx2czYnD2jlKtPSy(MeLYnr4zr1HVyImG)7T4lDF9wNV3bB4TZgE)(9gt6X86mKMejlwlog8sPC1wuDX3AQuno8GtnjyLlpJs5gunnsGlelSs5)hKNlzx5kx5Q2v(gkNyx5c2vC78aVh)8G06S)QhD4dC(P77T2Q2LCE4hC3(2UVExNF9z9w5292CF4rV1EVZQVuAVY5Vkt89FNDLczkKP4yG)p5fDF7TGeKBMjYorXcHWwACNEpCl37Vcy39nh4055E3yFNdF)e92EBWHj8w(Eo79c3opX7E7bEV76h7TZY75SYbUV(pSlbgU9wh9Hn9oy5UDUXLSlLlJDLUV9DURDlNfUR7w7wWBN7ga4f6T12olT(fcYIDP8GNU79i3TFLZJFz3NTO3Ih6T0oEh8giL2LkiTU9AbwZx8Z6(XvkKfWkWl7stc2HDG7T(tN1F359wzj4TJ5U0nDw(TWkmiJJhKk4JF2B1LTlvmiMXH9sK4g3BP)YPZd7(X9DwFJXchUmUXhSGNsU125zGp9E6UoBUy4IMDLVYUYuW6Z5WfcafyjCwnQUp3OnHBrzMH5eZH4MuZ6wkLDx9ooD(nNxDOZnF6r)9YtE0()F3ol0DPp4S6V09rp)Fw4g2LukJAjAW4kLD2CdN78iLY6ulHLKbIye4Jl7ZRryHmnLnOCoJRsn85XetuvDIMYxRiGvqy)O45vBtOMwXCQG0PHVPmMtfeofjz51QLbGLIv1qs4vPMyobzrY0Q5qGXmJQTS8)oa3KHZznDOTsfJAglNfLo1YIOYQvtTowtULooOMSGpJeXuHHvgjSinIVvMo2wzG)602q5xTkSqHL78yDIQaXRtGIQmXgORPg9TLleUoCo7kckEwaczsM5eBqlbNoB8A)ftSScWzWKlOHWuvNE9RJ4AYaZLnXidwEzMJkAqnb)cDeykRLQyMEag5oJyKFigACuDMPLAv4ew0WhL8NruYgENGSeQZHAt8rizYvmeSR85NSSG4yeSXixRPoZQp)k3Kjczq4(i5tDRbpbnJYctnoZseH1sXevDKjoyDwm9MGQCe1eaHqUojduFWIquaj01abDGFPl8rBQerRU(8nBK54qYmWP0qloRoct60beEBvKUUIeSYwIJ1pscX(uD)Yy)djbf6IfmvnkXx8lmTjCV1ajNKlKnycvODHGMnOmo8WAOksKJPMZZz(CQZGuvei8r(C9bFKPnuBDs7MK5AJe2ew2)NsUsMB9jY5Nonn4QGOMQbYePos14zslwoPPoXKA1WhGinOWZzAkl)FHDLPZEMvmJexHqQnK2mmAWnpPiCgsziIUt(SrBuup(mlff04QurvssUb40BvpzVFYm(p9EFnsnulDXjgGaZAzcGcdUcEoIbigXfQ((AjiiDzldirduGqVeUhcUiInNz6nTnaxfngEWwmg)tAx2n2NcgF4Iug8j5ooOSPr87uOgWqBTjAQwygh3iKKb0pQP2azbxJX1z4zdTV9Dn92WtndXHpmTmwjjFXaJG(RVWByU)W1sYxqK6eCd1EhThCIbimzfmUBy6s4X9ImnusJyErL4JmnIzcdAF)KgkmxeECstfMslPm02WagMedkrUt)sOglVLKtXIi5hdTrQbpOkhhpyOC1GF2OCS8r1TEMc2xVri)jeezPfDk3qlzpdp56pHuvovxNk1GY432fFcQH2t)o6(K)td)tyNcci66eSy0P)yZPRh4FFtDIHkUHSBWkOfimZZ8hAbQJd87mCdDlt6p2IOI4gmES1MbOXsmdmLUMrDoRF3sF(IgtKPgd3Ys1VZXUcqBcFtYqthlvKGgFeM6G)u(3d]] )
 
