@@ -461,7 +461,6 @@ spec:RegisterAuras( {
         id = 1282540,
         duration = 30,
         max_stack = 5,
-        copy = { 1282538, 1282540 }
     },
 } )
 
