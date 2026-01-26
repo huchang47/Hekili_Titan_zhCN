@@ -548,7 +548,7 @@ spec:RegisterAuras( {
         duration = 1800,
         tick_time = 6,
         max_stack = 1,
-        copy = { 34913, 43045, 43046 },
+        copy = { 34913, 43045, 43046, 30482 },--熔岩护甲1级为30482
     },
     -- Cannot attack or cast spells.  Increased regeneration.
     polymorph = {
@@ -1732,7 +1732,7 @@ spec:RegisterAbilities( {
             removeBuff( "unique_armor" )
             applyBuff( "molten_armor" )
         end,
-        copy = { 34913, 43045, 43046 },
+        copy = { 34913, 43045, 43046, 30482 },--熔岩护甲1级为30482
     },
 
     -- Transforms the enemy into a sheep, forcing it to wander around for up to $d.  While wandering, the sheep cannot attack or cast spells but will regenerate very quickly.  Any damage will transform the target back into its normal form.  Only one target can be polymorphed at a time.  Only works on Beasts, Humanoids and Critters.
