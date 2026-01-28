@@ -459,8 +459,9 @@ spec:RegisterAuras( {
     -- 转嫁 (泰坦时光服) - 储存连击点数
     redirect = {
         id = 1282540,
-        duration = 30,
+        duration = 3600,
         max_stack = 5,
+        copy = { 1282538, 1282540 }
     },
 } )
 
@@ -1579,11 +1580,34 @@ spec:RegisterAbilities( {
         startsCombat = false,
         texture = 236274,
 
-        usable = function() return combo_points.current > 0, "requires combo_points" end,
+        usable = function() 
+            -- 无法对玩家使用
+            if UnitIsPlayer("target") then
+                return false, "cannot be used on players"
+            end
+            -- 没有转嫁buff时需要连击点，有转嫁buff时不需要
+            if combo_points.current == 0 and not buff.redirect.up then
+                return false, "转嫁需要连击点"
+            end
+            return true
+        end,
 
         handler = function ()
-            applyBuff( "redirect", 30, combo_points.current )
-            spend( combo_points.current, "combo_points" )
+            if buff.redirect.up then
+                -- 如果已有转嫁buff，根据转嫁buff层数获得连击点
+                local stack = buff.redirect.stack
+                gain( stack, "combo_points" )
+                removeBuff( "redirect" )
+            else
+                -- 如果没有转嫁buff，消耗当前连击点，获得对应层数的转嫁buff
+
+                applyBuff( "redirect", nil, combo_points.current )
+                spend( combo_points.current, "combo_points" )
+            end
+        end,
+
+        copy = { 1282538, 1282540 }  
+          
         end,
     },
 

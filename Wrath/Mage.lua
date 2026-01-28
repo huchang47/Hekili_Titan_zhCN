@@ -548,7 +548,7 @@ spec:RegisterAuras( {
         duration = 1800,
         tick_time = 6,
         max_stack = 1,
-        copy = { 34913, 43045, 43046 },
+        copy = { 34913, 43045, 43046, 30482 },--熔岩护甲1级为30482
     },
     -- Cannot attack or cast spells.  Increased regeneration.
     polymorph = {
@@ -1463,7 +1463,7 @@ spec:RegisterAbilities( {
     -- Launches a bolt of frost at the enemy, causing ${$m2*$<mult>} to ${$M2*$<mult>} Frost damage and slowing movement speed by $s1% for $d.
     frostbolt = {
         id = 42842,
-        cast = function() return buff.presence_of_mind.up and 0 or ( 1.5 - ( 0.1 * ( talent.improved_frostbolt.rank + talent.empowered_frostbolt.rank ) ) ) * haste end,
+        cast = function() return buff.presence_of_mind.up and 0 or ( 3 - ( 0.1 * talent.improved_frostbolt.rank + 0.15 * talent.empowered_frostbolt.rank  ) ) * haste end, --基础施法时间为3s，强能之箭天赋每一点减基础冷却0.15s
         cooldown = 0,
         gcd = "spell",
 
@@ -1732,7 +1732,7 @@ spec:RegisterAbilities( {
             removeBuff( "unique_armor" )
             applyBuff( "molten_armor" )
         end,
-        copy = { 34913, 43045, 43046 },
+        copy = { 34913, 43045, 43046, 30482 },--熔岩护甲1级为30482
     },
 
     -- Transforms the enemy into a sheep, forcing it to wander around for up to $d.  While wandering, the sheep cannot attack or cast spells but will regenerate very quickly.  Any damage will transform the target back into its normal form.  Only one target can be polymorphed at a time.  Only works on Beasts, Humanoids and Critters.
