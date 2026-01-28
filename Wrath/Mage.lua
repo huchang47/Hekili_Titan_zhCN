@@ -1463,7 +1463,7 @@ spec:RegisterAbilities( {
     -- Launches a bolt of frost at the enemy, causing ${$m2*$<mult>} to ${$M2*$<mult>} Frost damage and slowing movement speed by $s1% for $d.
     frostbolt = {
         id = 42842,
-        cast = function() return buff.presence_of_mind.up and 0 or ( 1.5 - ( 0.1 * ( talent.improved_frostbolt.rank + talent.empowered_frostbolt.rank ) ) ) * haste end,
+        cast = function() return buff.presence_of_mind.up and 0 or ( 3 - ( 0.1 * talent.improved_frostbolt.rank + 0.15 * talent.empowered_frostbolt.rank  ) ) * haste end, --基础施法时间为3s，强能之箭天赋每一点减基础冷却0.15s
         cooldown = 0,
         gcd = "spell",
 
